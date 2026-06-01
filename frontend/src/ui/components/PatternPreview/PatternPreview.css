@@ -1,0 +1,20 @@
+.pattern-preview {
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  border-top: 1px solid #c8ced8;
+  border-left: 1px solid #c8ced8;
+  background: #ffffff;
+}
+
+.pattern-preview-cell {
+  aspect-ratio: 1;
+  border-right: 1px solid #c8ced8;
+  border-bottom: 1px solid #c8ced8;
+  background: #ffffff;
+}
+
+.pattern-preview-cell.filled {
+  background: #111111;
+}

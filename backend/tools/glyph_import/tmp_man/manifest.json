@@ -1,0 +1,23 @@
+{
+  "source_image": "D:\\ai_info\\creating\\filet-pattern\\backend\\tools\\glyph_import\\input\\raw\\sheet1.jpg",
+  "source_format": "jpg",
+  "extracted_count": 1,
+  "debug": {
+    "binary_image": "tmp_dbg\\sheet1_extraction_binary.png",
+    "overlay_image": "tmp_dbg\\sheet1_extraction_overlay.png"
+  },
+  "symbols": [
+    {
+      "index": 1,
+      "output_path": "tmp_ext\\sheet1_001.png",
+      "width": 695,
+      "height": 998,
+      "bounds": {
+        "left": 0,
+        "top": 0,
+        "right": 694,
+        "bottom": 997
+      }
+    }
+  ]
+}

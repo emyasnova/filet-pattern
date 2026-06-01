@@ -1,0 +1,93 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  height: 100vh;
+  overflow: hidden;
+  background: #f4f5f7;
+  color: #1d1d1f;
+}
+
+.workspace-panel {
+  min-width: 0;
+  min-height: 0;
+  padding: 24px;
+}
+
+.workspace-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden;
+  border-right: 1px solid #d7dbe2;
+}
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace-tools {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.panel-header h1,
+.panel-header h2,
+.panel-header p {
+  margin: 0;
+}
+
+.panel-header h1 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.panel-header h2 {
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.panel-header p {
+  margin-top: 6px;
+  color: #646b76;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.canvas-size {
+  flex: 0 0 auto;
+  border: 1px solid #c8ced8;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .panel-header {
+    flex-direction: column;
+  }
+
+  .workspace-tools {
+    justify-content: flex-start;
+  }
+
+  .workspace-panel {
+    border-right: 0;
+    border-bottom: 1px solid #d7dbe2;
+  }
+}

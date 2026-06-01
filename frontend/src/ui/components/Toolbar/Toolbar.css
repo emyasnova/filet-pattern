@@ -1,0 +1,64 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar button,
+.toolbar-file-button {
+  border: 1px solid #c8ced8;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #ffffff;
+  color: #1d1d1f;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.toolbar button:hover,
+.toolbar-file-button:hover {
+  border-color: #7b8491;
+  background: #f4f5f7;
+}
+
+.toolbar button:focus-visible,
+.toolbar-file-button:focus-within {
+  outline: 2px solid #2f6fed;
+  outline-offset: 2px;
+}
+
+.toolbar-selection-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-left: auto;
+  padding: 0;
+}
+
+.toolbar-selection-button.active {
+  border-color: #2f6fed;
+  background: #edf3ff;
+}
+
+.toolbar-selection-icon {
+  width: 18px;
+  height: 18px;
+  border: 2px dashed currentColor;
+  background:
+    linear-gradient(currentColor, currentColor) 50% 0 / 2px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) 0 50% / 100% 2px no-repeat;
+}
+
+.toolbar-file-button input {
+  display: none;
+}
+
+.toolbar-error {
+  width: 100%;
+  margin: 0;
+  color: #9f1d1d;
+  font-size: 13px;
+}

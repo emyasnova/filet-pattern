@@ -1,0 +1,79 @@
+.pattern-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #d7dbe2;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+  cursor: grab;
+}
+
+.pattern-card:active {
+  cursor: grabbing;
+}
+
+.pattern-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pattern-card-header h3,
+.pattern-card-header p {
+  margin: 0;
+}
+
+.pattern-card-header h3 {
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pattern-card-header p {
+  margin-top: 4px;
+  color: #646b76;
+  font-size: 13px;
+}
+
+.pattern-card-preview {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #edf0f4;
+  background: #f8f9fb;
+}
+
+.pattern-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pattern-card-actions button {
+  min-width: 0;
+  border: 1px solid #c8ced8;
+  border-radius: 6px;
+  padding: 7px 6px;
+  background: #ffffff;
+  color: #1d1d1f;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.pattern-card-actions button:hover {
+  border-color: #7b8491;
+  background: #f4f5f7;
+}
+
+.pattern-card-actions button:focus-visible {
+  outline: 2px solid #2f6fed;
+  outline-offset: 2px;
+}

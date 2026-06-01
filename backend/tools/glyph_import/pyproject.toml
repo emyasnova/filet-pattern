@@ -1,0 +1,25 @@
+[project]
+name = "glyph-import"
+version = "0.1.0"
+description = "Offline tool for importing glyphs from scanned filet crochet patterns."
+requires-python = ">=3.11"
+dependencies = [
+    "Pillow>=12.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+glyph-import = "src.main:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"

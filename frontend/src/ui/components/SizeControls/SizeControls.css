@@ -1,0 +1,43 @@
+.size-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.size-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.size-controls input {
+  width: 88px;
+  border: 1px solid #c8ced8;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #ffffff;
+  color: #1d1d1f;
+}
+
+.size-controls button {
+  border: 1px solid #2f6fed;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #2f6fed;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.size-controls button:hover {
+  background: #245dcc;
+}
+
+.size-controls input:focus-visible,
+.size-controls button:focus-visible {
+  outline: 2px solid #2f6fed;
+  outline-offset: 2px;
+}
