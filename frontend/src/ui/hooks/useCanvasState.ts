@@ -12,7 +12,9 @@ import {
 import { clearCanvas } from '../../application/clearCanvas';
 import { createEmptyCanvas } from '../../application/createEmptyCanvas';
 import { resizeCanvas } from '../../application/resizeCanvas';
+import { setCanvasCell } from '../../application/setCanvasCell';
 import { toggleCanvasCell } from '../../application/toggleCanvasCell';
+import type { CanvasCell } from '../../domain/cell';
 
 interface UseCanvasState {
   applyPattern: (pattern: Pattern, row: number, col: number) => void;
@@ -23,6 +25,7 @@ interface UseCanvasState {
   pasteBlock: (block: CanvasBlock, row: number, col: number) => void;
   replaceCanvas: (canvas: CanvasState) => void;
   resize: (width: number, height: number) => void;
+  setCell: (row: number, col: number, value: CanvasCell) => void;
   toggleCell: (row: number, col: number) => void;
 }
 
@@ -53,6 +56,10 @@ export function useCanvasState(): UseCanvasState {
     setCanvas((current) => toggleCanvasCell(current, row, col));
   }, []);
 
+  const setCell = useCallback((row: number, col: number, value: CanvasCell) => {
+    setCanvas((current) => setCanvasCell(current, row, col, value));
+  }, []);
+
   const resize = useCallback((width: number, height: number) => {
     setCanvas((current) => resizeCanvas(current, width, height));
   }, []);
@@ -70,6 +77,7 @@ export function useCanvasState(): UseCanvasState {
     pasteBlock,
     replaceCanvas,
     resize,
+    setCell,
     toggleCell,
   };
 }

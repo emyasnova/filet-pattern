@@ -13,6 +13,7 @@ import {
 } from './canvasBlockOperations';
 import { createEmptyCanvas } from './createEmptyCanvas';
 import { resizeCanvas } from './resizeCanvas';
+import { setCanvasCell } from './setCanvasCell';
 import { toggleCanvasCell } from './toggleCanvasCell';
 import type { CanvasState } from '../domain/canvas';
 import type { Pattern } from '../domain/pattern';
@@ -41,6 +42,27 @@ describe('canvas operations', () => {
       [0, 1],
       [0, 0],
     ]);
+    expect(cleared.cells).toEqual([
+      [0, 0],
+      [0, 0],
+    ]);
+  });
+
+  it('sets a canvas cell value without toggling repeated writes', () => {
+    const canvas = createEmptyCanvas(2, 2);
+    const filled = setCanvasCell(canvas, 0, 1, 1);
+    const filledAgain = setCanvasCell(filled, 0, 1, 1);
+    const cleared = setCanvasCell(filledAgain, 0, 1, 0);
+
+    expect(canvas.cells).toEqual([
+      [0, 0],
+      [0, 0],
+    ]);
+    expect(filled.cells).toEqual([
+      [0, 1],
+      [0, 0],
+    ]);
+    expect(filledAgain).toBe(filled);
     expect(cleared.cells).toEqual([
       [0, 0],
       [0, 0],

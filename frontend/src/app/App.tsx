@@ -35,6 +35,7 @@ export function App() {
     pasteBlock,
     replaceCanvas,
     resize,
+    setCell,
     toggleCell,
   } = useCanvasState();
   const { clearDraggedPattern, draggedPattern, startDragPattern } = useDragPattern();
@@ -232,6 +233,7 @@ export function App() {
           }}
           onSelectRect={setSelection}
           onSelectionContextMenu={(left, top) => setSelectionContextMenu({ left, top })}
+          onSetCell={setCell}
           onToggleCell={toggleCell}
           selection={selection}
         />

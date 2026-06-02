@@ -19,6 +19,7 @@ interface CanvasGridProps {
   onDropPattern: (pattern: Pattern, row: number, col: number) => void;
   onSelectRect: (selection: SelectionRect) => void;
   onSelectionContextMenu: (left: number, top: number) => void;
+  onSetCell: (row: number, col: number, value: CanvasCell) => void;
   onToggleCell: (row: number, col: number) => void;
   selection: SelectionRect | null;
 }
@@ -32,6 +33,11 @@ interface CanvasRowProps {
 interface PreviewPosition {
   row: number;
   col: number;
+}
+
+interface DrawingState {
+  value: CanvasCell;
+  lastCellKey: string;
 }
 
 const CanvasRow = memo(function CanvasRow({ row, cells, selection }: CanvasRowProps) {
@@ -82,9 +88,11 @@ export function CanvasGrid({
   onDropPattern,
   onSelectRect,
   onSelectionContextMenu,
+  onSetCell,
   onToggleCell,
   selection,
 }: CanvasGridProps) {
+  const [drawingState, setDrawingState] = useState<DrawingState | null>(null);
   const [previewPosition, setPreviewPosition] = useState<PreviewPosition | null>(null);
   const [selectionStart, setSelectionStart] = useState<CellPosition | null>(null);
   const [draftSelection, setDraftSelection] = useState<SelectionRect | null>(null);
@@ -118,24 +126,48 @@ export function CanvasGrid({
         return;
       }
 
-      const cell = (event.target as HTMLElement).closest<HTMLElement>('.canvas-cell');
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
 
-      if (!cell) {
-        return;
-      }
-
-      cell.classList.toggle('filled');
-      cell.setAttribute(
-        'aria-selected',
-        cell.classList.contains('filled') ? 'true' : 'false',
-      );
+      const nextValue: CanvasCell = canvas.cells[position.row][position.col] === 1 ? 0 : 1;
+      setDrawingState({
+        value: nextValue,
+        lastCellKey: getCellKey(position),
+      });
       onToggleCell(position.row, position.col);
     },
-    [isSelectionMode, onSelectRect, onToggleCell],
+    [canvas.cells, isSelectionMode, onSelectRect, onToggleCell],
   );
 
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      if (drawingState) {
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+
+        if (!target || !event.currentTarget.contains(target)) {
+          return;
+        }
+
+        const position = getCellPosition(target);
+
+        if (!position) {
+          return;
+        }
+
+        const cellKey = getCellKey(position);
+
+        if (cellKey === drawingState.lastCellKey) {
+          return;
+        }
+
+        setDrawingState({
+          ...drawingState,
+          lastCellKey: cellKey,
+        });
+        onSetCell(position.row, position.col, drawingState.value);
+        return;
+      }
+
       if (!selectionStart) {
         return;
       }
@@ -156,11 +188,20 @@ export function CanvasGrid({
       setDraftSelection(nextSelection);
       onSelectRect(nextSelection);
     },
-    [onSelectRect, selectionStart],
+    [drawingState, onSelectRect, onSetCell, selectionStart],
   );
 
   const handlePointerUp = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      if (drawingState) {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+
+        setDrawingState(null);
+        return;
+      }
+
       if (!selectionStart) {
         return;
       }
@@ -172,7 +213,7 @@ export function CanvasGrid({
       setSelectionStart(null);
       setDraftSelection(null);
     },
-    [selectionStart],
+    [drawingState, selectionStart],
   );
 
   const handleDragOver = useCallback(
@@ -383,4 +424,8 @@ function getCellPosition(target: EventTarget | null): CellPosition | null {
   }
 
   return { row, col };
+}
+
+function getCellKey(position: CellPosition): string {
+  return `${position.row}:${position.col}`;
 }
