@@ -10,6 +10,8 @@ import {
 describe('pattern transformations', () => {
   const pattern: Pattern = {
     id: 'sample',
+    category: 'uncategorized',
+    tags: [],
     width: 3,
     height: 2,
     cells: [

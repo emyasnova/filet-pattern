@@ -21,7 +21,9 @@ describe('validatePattern', () => {
     expect(result.pattern).toEqual({
       id: 'B.json',
       char: 'B',
+      category: 'uncategorized',
       name: undefined,
+      tags: [],
       width: 2,
       height: 2,
       cells: [
@@ -29,6 +31,43 @@ describe('validatePattern', () => {
         [null, null],
       ],
     });
+  });
+
+  it('accepts optional category and tags metadata', () => {
+    const result = validatePattern(
+      {
+        char: 'F',
+        category: 'ornament',
+        tags: ['flower', 'цветок', 'flower', ' '],
+        width: 1,
+        height: 1,
+        cells: [[1]],
+      },
+      'flower.json',
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.pattern?.category).toBe('ornament');
+    expect(result.pattern?.tags).toEqual(['flower', 'цветок']);
+  });
+
+  it('rejects invalid category and tags metadata', () => {
+    const result = validatePattern(
+      {
+        category: 'unknown',
+        tags: ['flower', 1],
+        width: 1,
+        height: 1,
+        cells: [[1]],
+      },
+      'bad-meta.json',
+    );
+
+    expect(result.pattern).toBeUndefined();
+    expect(result.errors).toContain(
+      'category must be one of alphabet, frame, object, or ornament.',
+    );
+    expect(result.errors).toContain('tags[1] must be a string.');
   });
 
   it('normalizes external empty cells to null and preserves inner zeros', () => {

@@ -1,8 +1,18 @@
 import type { PatternCell } from '../domain/cell';
-import type { Pattern } from '../domain/pattern';
+import type { Pattern, PatternCategory } from '../domain/pattern';
 import { normalizePatternTransparency } from './normalizePatternTransparency';
 
-type PatternJson = Partial<Omit<Pattern, 'id'>>;
+const ALLOWED_PATTERN_CATEGORIES: PatternCategory[] = [
+  'alphabet',
+  'frame',
+  'object',
+  'ornament',
+];
+
+type PatternJson = Partial<Omit<Pattern, 'id' | 'category' | 'tags'>> & {
+  category?: unknown;
+  tags?: unknown;
+};
 
 export interface ValidatePatternResult {
   pattern?: Pattern;
@@ -62,15 +72,43 @@ export function validatePattern(data: unknown, id: string): ValidatePatternResul
     errors.push('name must be a string when provided.');
   }
 
+  if (
+    patternJson.category !== undefined &&
+    !isAllowedPatternCategory(patternJson.category)
+  ) {
+    errors.push('category must be one of alphabet, frame, object, or ornament.');
+  }
+
+  if (patternJson.tags !== undefined) {
+    if (!Array.isArray(patternJson.tags)) {
+      errors.push('tags must be an array when provided.');
+    } else {
+      patternJson.tags.forEach((tag, tagIndex) => {
+        if (typeof tag !== 'string') {
+          errors.push(`tags[${tagIndex}] must be a string.`);
+        }
+      });
+    }
+  }
+
   if (errors.length > 0) {
     return { errors };
   }
+
+  const category = isAllowedPatternCategory(patternJson.category)
+    ? patternJson.category
+    : 'uncategorized';
+  const tags = Array.isArray(patternJson.tags)
+    ? [...new Set(patternJson.tags.map((tag) => tag.trim()).filter(Boolean))]
+    : [];
 
   return {
     pattern: {
       id,
       char: patternJson.char,
+      category,
       name: patternJson.name,
+      tags,
       width: width as number,
       height: height as number,
       cells: normalizePatternTransparency(cells as PatternCell[][]),
@@ -89,4 +127,11 @@ function isPositiveInteger(value: unknown): value is number {
 
 function isPatternCell(value: unknown): value is PatternCell {
   return value === 0 || value === 1 || value === null;
+}
+
+function isAllowedPatternCategory(value: unknown): value is PatternCategory {
+  return (
+    typeof value === 'string' &&
+    ALLOWED_PATTERN_CATEGORIES.includes(value as PatternCategory)
+  );
 }

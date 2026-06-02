@@ -162,6 +162,8 @@ describe('canvas operations', () => {
     };
     const pattern: Pattern = {
       id: 'sample',
+      category: 'uncategorized',
+      tags: [],
       width: 2,
       height: 2,
       cells: [
@@ -198,6 +200,8 @@ describe('canvas operations', () => {
     };
     const pattern: Pattern = {
       id: 'normalized',
+      category: 'uncategorized',
+      tags: [],
       width: 3,
       height: 3,
       cells: [
@@ -221,6 +225,8 @@ describe('canvas operations', () => {
   it('clips a pattern at canvas boundaries', () => {
     const pattern: Pattern = {
       id: 'sample',
+      category: 'uncategorized',
+      tags: [],
       width: 2,
       height: 2,
       cells: [
