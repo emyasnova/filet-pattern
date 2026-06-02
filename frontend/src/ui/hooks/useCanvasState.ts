@@ -3,6 +3,10 @@ import { useCallback, useState } from 'react';
 import type { CanvasState } from '../../domain/canvas';
 import type { Pattern } from '../../domain/pattern';
 import type { CanvasBlock, SelectionRect } from '../../domain/selection';
+import {
+  addCanvasColumnsLeft,
+  addCanvasRowsTop,
+} from '../../application/addCanvasEdges';
 import { applyPatternToCanvas } from '../../application/applyPatternToCanvas';
 import {
   clearCanvasBlock,
@@ -17,6 +21,8 @@ import { toggleCanvasCell } from '../../application/toggleCanvasCell';
 import type { CanvasCell } from '../../domain/cell';
 
 interface UseCanvasState {
+  addColumnsLeft: () => void;
+  addRowsTop: () => void;
   applyPattern: (pattern: Pattern, row: number, col: number) => void;
   canvas: CanvasState;
   clear: () => void;
@@ -31,6 +37,14 @@ interface UseCanvasState {
 
 export function useCanvasState(): UseCanvasState {
   const [canvas, setCanvas] = useState(() => createEmptyCanvas());
+
+  const addRowsTop = useCallback(() => {
+    setCanvas((current) => addCanvasRowsTop(current));
+  }, []);
+
+  const addColumnsLeft = useCallback(() => {
+    setCanvas((current) => addCanvasColumnsLeft(current));
+  }, []);
 
   const applyPattern = useCallback((pattern: Pattern, row: number, col: number) => {
     setCanvas((current) => applyPatternToCanvas(current, pattern, row, col));
@@ -69,6 +83,8 @@ export function useCanvasState(): UseCanvasState {
   }, []);
 
   return {
+    addColumnsLeft,
+    addRowsTop,
     applyPattern,
     canvas,
     clear,

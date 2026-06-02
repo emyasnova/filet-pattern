@@ -27,6 +27,8 @@ import './App.css';
 
 export function App() {
   const {
+    addColumnsLeft,
+    addRowsTop,
     applyPattern,
     canvas,
     clear,
@@ -102,6 +104,18 @@ export function App() {
 
   const handleResize = (width: number, height: number) => {
     resize(width, height);
+    setSelection(null);
+    setSelectionContextMenu(null);
+  };
+
+  const handleAddRowTop = () => {
+    addRowsTop();
+    setSelection(null);
+    setSelectionContextMenu(null);
+  };
+
+  const handleAddColumnLeft = () => {
+    addColumnsLeft();
     setSelection(null);
     setSelectionContextMenu(null);
   };
@@ -202,14 +216,20 @@ export function App() {
             <p>Клик по клетке переключает заполнение.</p>
           </div>
           <div className="workspace-tools">
-            <span className="canvas-size">
-              {canvas.width} x {canvas.height}
-            </span>
             <SizeControls
               width={canvas.width}
               height={canvas.height}
               onApplySize={handleResize}
             />
+            <div className="canvas-edge-actions" aria-label="Добавление строк и столбцов">
+              <button type="button" onClick={handleAddRowTop}>
+                + Строка сверху
+              </button>
+
+              <button type="button" onClick={handleAddColumnLeft}>
+                + Столбец слева
+              </button>
+            </div>
           </div>
         </div>
 

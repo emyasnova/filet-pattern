@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import {
+  addCanvasColumnsLeft,
+  addCanvasRowsTop,
+} from './addCanvasEdges';
 import { applyPatternToCanvas } from './applyPatternToCanvas';
 import {
   clearCanvasBlock,
@@ -91,6 +95,58 @@ describe('canvas operations', () => {
     expect(canvas.cells).toEqual([
       [1, 0],
       [0, 1],
+    ]);
+  });
+
+  it('adds empty rows at the top and shifts existing content down', () => {
+    const canvas: CanvasState = {
+      width: 3,
+      height: 2,
+      cells: [
+        [1, 0, 1],
+        [0, 1, 0],
+      ],
+    };
+
+    const result = addCanvasRowsTop(canvas);
+
+    expect(result.width).toBe(3);
+    expect(result.height).toBe(3);
+    expect(result.cells).toEqual([
+      [0, 0, 0],
+      [1, 0, 1],
+      [0, 1, 0],
+    ]);
+    expect(canvas.cells).toEqual([
+      [1, 0, 1],
+      [0, 1, 0],
+    ]);
+  });
+
+  it('adds empty columns at the left and shifts existing content right', () => {
+    const canvas: CanvasState = {
+      width: 2,
+      height: 3,
+      cells: [
+        [1, 0],
+        [0, 1],
+        [1, 1],
+      ],
+    };
+
+    const result = addCanvasColumnsLeft(canvas);
+
+    expect(result.width).toBe(3);
+    expect(result.height).toBe(3);
+    expect(result.cells).toEqual([
+      [0, 1, 0],
+      [0, 0, 1],
+      [0, 1, 1],
+    ]);
+    expect(canvas.cells).toEqual([
+      [1, 0],
+      [0, 1],
+      [1, 1],
     ]);
   });
 
