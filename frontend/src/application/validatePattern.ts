@@ -1,5 +1,6 @@
 import type { PatternCell } from '../domain/cell';
 import type { Pattern } from '../domain/pattern';
+import { normalizePatternTransparency } from './normalizePatternTransparency';
 
 type PatternJson = Partial<Omit<Pattern, 'id'>>;
 
@@ -72,7 +73,7 @@ export function validatePattern(data: unknown, id: string): ValidatePatternResul
       name: patternJson.name,
       width: width as number,
       height: height as number,
-      cells: cells as PatternCell[][],
+      cells: normalizePatternTransparency(cells as PatternCell[][]),
     },
     errors,
   };

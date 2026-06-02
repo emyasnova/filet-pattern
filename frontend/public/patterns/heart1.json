@@ -4,11 +4,11 @@
   "height": 4,
   "cells": [
     [
-      0,
+      null,
       1,
-      0,
+      null,
       1,
-      0
+      null
     ],
     [
       1,
@@ -18,18 +18,18 @@
       1
     ],
     [
-      0,
+      null,
       1,
       1,
       1,
-      0
+      null
     ],
     [
-      0,
-      0,
+      null,
+      null,
       1,
-      0,
-      0
+      null,
+      null
     ]
   ]
 }

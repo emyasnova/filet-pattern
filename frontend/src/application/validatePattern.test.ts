@@ -25,10 +25,36 @@ describe('validatePattern', () => {
       width: 2,
       height: 2,
       cells: [
-        [0, 1],
-        [null, 0],
+        [null, 1],
+        [null, null],
       ],
     });
+  });
+
+  it('normalizes external empty cells to null and preserves inner zeros', () => {
+    const result = validatePattern(
+      {
+        width: 5,
+        height: 5,
+        cells: [
+          [0, 0, 0, 0, 0],
+          [0, 1, 1, 1, 0],
+          [0, 1, 0, 1, 0],
+          [0, 1, 1, 1, 0],
+          [0, 0, 0, 0, 0],
+        ],
+      },
+      'sample.json',
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.pattern?.cells).toEqual([
+      [null, null, null, null, null],
+      [null, 1, 1, 1, null],
+      [null, 1, 0, 1, null],
+      [null, 1, 1, 1, null],
+      [null, null, null, null, null],
+    ]);
   });
 
   it('rejects invalid dimensions and cell values', () => {

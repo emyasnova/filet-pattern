@@ -184,6 +184,40 @@ describe('canvas operations', () => {
     ]);
   });
 
+  it('keeps filled canvas cells under transparent normalized pattern cells', () => {
+    const canvas: CanvasState = {
+      width: 5,
+      height: 5,
+      cells: [
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+      ],
+    };
+    const pattern: Pattern = {
+      id: 'normalized',
+      width: 3,
+      height: 3,
+      cells: [
+        [null, 1, null],
+        [1, 0, 1],
+        [null, 1, null],
+      ],
+    };
+
+    const result = applyPatternToCanvas(canvas, pattern, 1, 1);
+
+    expect(result.cells).toEqual([
+      [1, 1, 1, 1, 1],
+      [1, 1, 1, 1, 1],
+      [1, 1, 0, 1, 1],
+      [1, 1, 1, 1, 1],
+      [1, 1, 1, 1, 1],
+    ]);
+  });
+
   it('clips a pattern at canvas boundaries', () => {
     const pattern: Pattern = {
       id: 'sample',
