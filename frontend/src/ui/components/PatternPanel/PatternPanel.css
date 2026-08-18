@@ -10,6 +10,28 @@
   background: #ffffff;
 }
 
+.pattern-create-button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid #2f6fed;
+  border-radius: 50%;
+  background: #2f6fed;
+  color: #fff;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.pattern-create-notice {
+  border: 1px solid #86b69b;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #eefbf3;
+  color: #245c39;
+  font-size: 13px;
+}
+
 .pattern-placeholder {
   display: grid;
   min-height: 160px;

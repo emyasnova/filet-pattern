@@ -1,6 +1,5 @@
 import type { CanvasState } from '../domain/canvas';
 import type { Pattern } from '../domain/pattern';
-import { cloneMatrix } from '../domain/matrix';
 
 export function applyPatternToCanvas(
   canvas: CanvasState,
@@ -8,7 +7,8 @@ export function applyPatternToCanvas(
   startRow: number,
   startCol: number,
 ): CanvasState {
-  const cells = cloneMatrix(canvas.cells);
+  const cells = [...canvas.cells];
+  const changedRows = new Set<number>();
 
   for (let patternRow = 0; patternRow < pattern.height; patternRow += 1) {
     const canvasRow = startRow + patternRow;
@@ -26,13 +26,17 @@ export function applyPatternToCanvas(
 
       const patternCell = pattern.cells[patternRow][patternCol];
 
-      if (patternCell !== null) {
+      if (patternCell !== null && cells[canvasRow][canvasCol] !== patternCell) {
+        if (!changedRows.has(canvasRow)) {
+          cells[canvasRow] = [...cells[canvasRow]];
+          changedRows.add(canvasRow);
+        }
         cells[canvasRow][canvasCol] = patternCell;
       }
     }
   }
 
-  return {
+  return changedRows.size === 0 ? canvas : {
     ...canvas,
     cells,
   };

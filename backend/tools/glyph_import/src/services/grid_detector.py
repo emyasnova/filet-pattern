@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from src.domain.models import GridDetectionResult, PreprocessedImage
+from ..domain.models import GridDetectionResult, PreprocessedImage
 
 
 DARKNESS_SCALE_MAX = 255

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter, ImageOps
 
-from src.domain.models import LoadedImage, PreprocessedImage
+from ..domain.models import LoadedImage, PreprocessedImage
 
 
 DEFAULT_THRESHOLD = 128

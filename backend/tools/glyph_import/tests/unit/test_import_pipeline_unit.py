@@ -7,6 +7,7 @@ import pytest
 
 from src.config import AppConfig
 from src.domain.models import ImportPipelineOptions
+import src.pipelines.import_pipeline as import_pipeline
 from src.pipelines.import_pipeline import (
     ImportPipelineError,
     run_batch_import_pipeline,
@@ -71,3 +72,38 @@ def test_run_batch_import_pipeline_collects_successes_and_failures(tmp_path: Pat
     assert summary.items[1].char == "Z"
     assert summary.items[1].success is False
     assert summary.items[1].error_message is not None
+
+
+def test_run_batch_import_pipeline_uses_explicit_input_dir_and_full_stems(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = AppConfig.from_project_root(tmp_path)
+    prepared_dir = config.prepared_dir
+    prepared_dir.mkdir(parents=True, exist_ok=True)
+    (prepared_dir / "a000.png").write_bytes(b"fake-png")
+    (prepared_dir / "a001.png").write_bytes(b"fake-png")
+    (prepared_dir / "ignore.txt").write_text("skip", encoding="utf-8")
+
+    def fake_run_import_pipeline(
+        *,
+        input_path: str | Path,
+        char: str,
+        config: AppConfig,
+        options: ImportPipelineOptions,
+    ) -> None:
+        return None
+
+    monkeypatch.setattr(import_pipeline, "run_import_pipeline", fake_run_import_pipeline)
+
+    summary = run_batch_import_pipeline(
+        config=config,
+        options=ImportPipelineOptions(fill_threshold=0.35),
+        input_dir=prepared_dir,
+    )
+
+    assert summary.input_dir == prepared_dir.resolve()
+    assert summary.processed_count == 2
+    assert summary.success_count == 2
+    assert summary.failure_count == 0
+    assert [item.char for item in summary.items] == ["a000", "a001"]

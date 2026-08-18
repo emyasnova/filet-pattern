@@ -1,73 +1,52 @@
 import { memo, useMemo, useState } from 'react';
 
-import {
-  filterPatterns,
-  getAvailablePatternTags,
-  PATTERN_CATEGORY_LABELS,
-  PATTERN_CATEGORY_OPTIONS,
-} from '../../../application/filterPatterns';
-import type { Pattern, PatternCategory } from '../../../domain/pattern';
-import type { PatternLoadError } from '../../../infrastructure/patternRepository';
+import type { Pattern } from '../../../domain/pattern';
+import { usePatterns } from '../../hooks/usePatterns';
 import { PatternCard } from '../PatternCard/PatternCard';
+import { PatternCreateModal } from '../PatternCreateModal/PatternCreateModal';
 import './PatternPanel.css';
 
 interface PatternPanelProps {
   onPatternDragEnd: () => void;
   onPatternDragStart: (pattern: Pattern) => void;
-  patterns: Pattern[];
-  errors: PatternLoadError[];
-  isLoading: boolean;
 }
 
 export const PatternPanel = memo(function PatternPanel({
   onPatternDragEnd,
   onPatternDragStart,
-  patterns,
-  errors,
-  isLoading,
 }: PatternPanelProps) {
-  const [category, setCategory] = useState<PatternCategory | 'all'>('all');
+  const [category, setCategory] = useState('');
   const [query, setQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
-
-  const availableTags = useMemo(() => getAvailablePatternTags(patterns), [patterns]);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const [notice, setNotice] = useState('');
+  const filters = useMemo(
+    () => ({ search: query, category: category || undefined, tags: selectedTags }),
+    [category, query, selectedTags],
+  );
+  const { patterns, categories, availableTags, errors, isLoading } =
+    usePatterns(filters, catalogRevision);
+  const tagNames = useMemo(() => availableTags.map((tag) => tag.name), [availableTags]);
   const filteredTags = useMemo(() => {
     const normalizedDraft = tagDraft.trim().toLocaleLowerCase('ru');
-
-    return availableTags.filter((tag) => {
-      if (selectedTags.includes(tag)) {
-        return false;
-      }
-
+    return tagNames.filter((tag) => {
+      if (selectedTags.includes(tag)) return false;
       return !normalizedDraft || tag.toLocaleLowerCase('ru').includes(normalizedDraft);
     });
-  }, [availableTags, selectedTags, tagDraft]);
-  const filteredPatterns = useMemo(
-    () =>
-      filterPatterns(patterns, {
-        category,
-        query,
-        tags: selectedTags,
-      }),
-    [category, patterns, query, selectedTags],
-  );
-  const hasActiveFilters =
-    category !== 'all' || query.trim().length > 0 || selectedTags.length > 0;
+  }, [selectedTags, tagDraft, tagNames]);
+  const hasActiveFilters = Boolean(category || query.trim() || selectedTags.length);
 
   const handleAddTag = (tag: string) => {
     const nextTag = tag.trim();
-
-    if (!nextTag || !availableTags.includes(nextTag) || selectedTags.includes(nextTag)) {
-      return;
-    }
-
+    if (!nextTag || !tagNames.includes(nextTag) || selectedTags.includes(nextTag)) return;
     setSelectedTags((current) => [...current, nextTag]);
     setTagDraft('');
   };
 
   const handleResetFilters = () => {
-    setCategory('all');
+    setCategory('');
     setQuery('');
     setSelectedTags([]);
     setTagDraft('');
@@ -78,9 +57,20 @@ export const PatternPanel = memo(function PatternPanel({
       <div className="panel-header">
         <div>
           <h2 id="patterns-title">Мотивы</h2>
-          <p>Загружаются из JSON-файлов в public/patterns.</p>
+          <p>Загружаются из каталога на сервере.</p>
         </div>
+        <button
+          type="button"
+          className="pattern-create-button"
+          aria-label="Добавить паттерн"
+          title="Добавить паттерн"
+          onClick={() => setIsCreateOpen(true)}
+        >
+          +
+        </button>
       </div>
+
+      {notice ? <div className="pattern-create-notice" role="status">{notice}</div> : null}
 
       <div className="pattern-filters" aria-label="Поиск и фильтры мотивов">
         <label className="pattern-filter-field">
@@ -88,23 +78,18 @@ export const PatternPanel = memo(function PatternPanel({
           <input
             type="search"
             value={query}
-            placeholder="Название, тэг, id"
+            placeholder="Название или тэг"
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
 
         <label className="pattern-filter-field">
           <span>Категория</span>
-          <select
-            value={category}
-            onChange={(event) =>
-              setCategory(event.target.value as PatternCategory | 'all')
-            }
-          >
-            <option value="all">Все</option>
-            {PATTERN_CATEGORY_OPTIONS.map((categoryOption) => (
-              <option key={categoryOption} value={categoryOption}>
-                {PATTERN_CATEGORY_LABELS[categoryOption]}
+          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+            <option value="">Все</option>
+            {categories.map((categoryOption) => (
+              <option key={categoryOption.slug} value={categoryOption.slug}>
+                {categoryOption.name}
               </option>
             ))}
           </select>
@@ -119,18 +104,13 @@ export const PatternPanel = memo(function PatternPanel({
             placeholder="Начните ввод"
             onChange={(event) => setTagDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key !== 'Enter') {
-                return;
-              }
-
+              if (event.key !== 'Enter') return;
               event.preventDefault();
               handleAddTag(tagDraft);
             }}
           />
           <datalist id="pattern-tags">
-            {filteredTags.map((tag) => (
-              <option key={tag} value={tag} />
-            ))}
+            {filteredTags.map((tag) => <option key={tag} value={tag} />)}
           </datalist>
         </label>
 
@@ -151,9 +131,7 @@ export const PatternPanel = memo(function PatternPanel({
                 className="pattern-tag-chip"
                 key={tag}
                 onClick={() =>
-                  setSelectedTags((current) =>
-                    current.filter((currentTag) => currentTag !== tag),
-                  )
+                  setSelectedTags((current) => current.filter((currentTag) => currentTag !== tag))
                 }
               >
                 {tag} <span aria-hidden="true">x</span>
@@ -163,9 +141,7 @@ export const PatternPanel = memo(function PatternPanel({
         ) : null}
 
         <div className="pattern-filter-footer">
-          <span>
-            Найдено {filteredPatterns.length} из {patterns.length}
-          </span>
+          <span>Найдено {patterns.length}</span>
           <button type="button" disabled={!hasActiveFilters} onClick={handleResetFilters}>
             Сбросить
           </button>
@@ -173,18 +149,14 @@ export const PatternPanel = memo(function PatternPanel({
       </div>
 
       {isLoading ? <div className="pattern-placeholder">Загрузка мотивов...</div> : null}
-
       {!isLoading && patterns.length === 0 ? (
-        <div className="pattern-placeholder">Мотивы не найдены</div>
+        <div className="pattern-placeholder">
+          {hasActiveFilters ? 'Нет мотивов по фильтрам' : 'Мотивы не найдены'}
+        </div>
       ) : null}
-
-      {!isLoading && patterns.length > 0 && filteredPatterns.length === 0 ? (
-        <div className="pattern-placeholder">Нет мотивов по фильтрам</div>
-      ) : null}
-
-      {filteredPatterns.length > 0 ? (
+      {patterns.length > 0 ? (
         <div className="pattern-card-list" aria-label="Загруженные мотивы">
-          {filteredPatterns.map((pattern) => (
+          {patterns.map((pattern) => (
             <PatternCard
               key={pattern.id}
               pattern={pattern}
@@ -194,7 +166,6 @@ export const PatternPanel = memo(function PatternPanel({
           ))}
         </div>
       ) : null}
-
       {errors.length > 0 ? (
         <div className="pattern-errors" role="status" aria-label="Ошибки мотивов">
           <h3>Ошибки загрузки</h3>
@@ -206,6 +177,18 @@ export const PatternPanel = memo(function PatternPanel({
             ))}
           </ul>
         </div>
+      ) : null}
+      {isCreateOpen ? (
+        <PatternCreateModal
+          categories={categories}
+          availableTags={availableTags}
+          onClose={() => setIsCreateOpen(false)}
+          onCreated={(pattern) => {
+            setIsCreateOpen(false);
+            setNotice(`Паттерн «${pattern.name}» сохранён`);
+            setCatalogRevision((current) => current + 1);
+          }}
+        />
       ) : null}
     </aside>
   );

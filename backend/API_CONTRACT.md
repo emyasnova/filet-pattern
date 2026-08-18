@@ -41,6 +41,76 @@ Response:
 
 ---
 
+### GET /api/v1/patterns
+
+Optional query parameters:
+
+* `search` — часть имени или тега;
+* `category` — slug категории;
+* `tags` — повторяемый параметр с AND-семантикой.
+
+Response:
+
+```json
+[
+  {
+    "id": "83f9eefc-b6bc-5bdb-b521-c010422068ff",
+    "name": "Rose",
+    "category": "ornament",
+    "tags": ["flower", "роза"],
+    "width": 97,
+    "height": 47,
+    "cells": [[null, 1, 0]],
+    "created_at": "2026-08-17T00:00:00Z"
+  }
+]
+```
+
+### GET /api/v1/categories
+
+```json
+[{ "slug": "alphabet", "name": "Алфавит" }]
+```
+
+### GET /api/v1/tags
+
+```json
+[{ "id": "6f68ca44-0999-578d-a772-078c702cec67", "name": "flower" }]
+```
+
+### POST /api/v1/patterns/preview
+
+Multipart fields: `file`, `width`, `height`, optional `threshold` (default
+`128`) and `fill_threshold` (default `0.35`).
+
+```json
+{
+  "width": 34,
+  "height": 26,
+  "threshold": 128,
+  "fill_threshold": 0.35,
+  "cells": [[null, 1, 0]]
+}
+```
+
+### POST /api/v1/patterns
+
+```json
+{
+  "name": "rose",
+  "category": "ornament",
+  "tags": ["flower", "роза"],
+  "width": 34,
+  "height": 26,
+  "cells": [[null, 1, 0]]
+}
+```
+
+Ответ `201 Created` имеет формат обычного объекта паттерна. Новые теги
+создаются автоматически. Внешний связный пустой фон нормализуется в `null`.
+
+---
+
 ## Ошибки
 
 ```json

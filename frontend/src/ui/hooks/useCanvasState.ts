@@ -17,6 +17,7 @@ import { clearCanvas } from '../../application/clearCanvas';
 import { createEmptyCanvas } from '../../application/createEmptyCanvas';
 import { resizeCanvas } from '../../application/resizeCanvas';
 import { setCanvasCell } from '../../application/setCanvasCell';
+import { paintCanvasCells, type CanvasCellUpdate } from '../../application/paintCanvasCells';
 import { toggleCanvasCell } from '../../application/toggleCanvasCell';
 import type { CanvasCell } from '../../domain/cell';
 
@@ -29,6 +30,7 @@ interface UseCanvasState {
   clearBlock: (selection: SelectionRect) => void;
   fillBlock: (selection: SelectionRect) => void;
   pasteBlock: (block: CanvasBlock, row: number, col: number) => void;
+  paintCells: (updates: readonly CanvasCellUpdate[]) => void;
   replaceCanvas: (canvas: CanvasState) => void;
   resize: (width: number, height: number) => void;
   setCell: (row: number, col: number, value: CanvasCell) => void;
@@ -66,6 +68,10 @@ export function useCanvasState(): UseCanvasState {
     setCanvas((current) => pasteCanvasBlock(current, block, row, col));
   }, []);
 
+  const paintCells = useCallback((updates: readonly CanvasCellUpdate[]) => {
+    setCanvas((current) => paintCanvasCells(current, updates));
+  }, []);
+
   const toggleCell = useCallback((row: number, col: number) => {
     setCanvas((current) => toggleCanvasCell(current, row, col));
   }, []);
@@ -91,6 +97,7 @@ export function useCanvasState(): UseCanvasState {
     clearBlock,
     fillBlock,
     pasteBlock,
+    paintCells,
     replaceCanvas,
     resize,
     setCell,

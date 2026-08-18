@@ -244,3 +244,59 @@ class ExtractionResult:
     binary_debug_path: Path
     overlay_debug_path: Path
     manifest_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class CropBounds:
+    """Pixel bounds for the detected scheme grid crop."""
+
+    left: int
+    top: int
+    right: int
+    bottom: int
+
+
+@dataclass(frozen=True, slots=True)
+class CropOptions:
+    """Tunable parameters for cropping a source image to the scheme grid."""
+
+    threshold: int = 128
+    denoise: bool = True
+    denoise_filter_size: int = 3
+    crop_padding: int = 2
+    debug: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CropResult:
+    """Result of cropping one source image to its scheme grid."""
+
+    options: CropOptions
+    loaded_image: LoadedImage
+    preprocessed_image: PreprocessedImage
+    bounds: CropBounds
+    output_path: Path
+    width: int
+    height: int
+    overlay_debug_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class BatchCropItemResult:
+    """Result of cropping one file in batch crop mode."""
+
+    input_path: Path
+    success: bool
+    crop_result: CropResult | None = None
+    error_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BatchCropSummary:
+    """Summary of cropping all supported files from a directory."""
+
+    input_dir: Path
+    processed_count: int
+    success_count: int
+    failure_count: int
+    items: tuple[BatchCropItemResult, ...]

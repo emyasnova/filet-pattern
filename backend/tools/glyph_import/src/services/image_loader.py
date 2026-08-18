@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
-from src.domain.models import ImageFormat, LoadedImage
+from PIL import Image, UnidentifiedImageError
+
+from ..domain.models import ImageFormat, LoadedImage
 
 
+PIL_FORMATS_BY_EXTENSION = {
+    ImageFormat.PNG: {"PNG"},
+    ImageFormat.JPG: {"JPEG", "WEBP"},
+}
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 JPEG_SOI = b"\xff\xd8"
 JPEG_EOI = b"\xff\xd9"
@@ -18,6 +25,7 @@ class InvalidImageFormatError(ValueError):
 
 SUPPORTED_EXTENSIONS = {
     ".jpg": ImageFormat.JPG,
+    ".jpeg": ImageFormat.JPG,
     ".png": ImageFormat.PNG,
 }
 
@@ -43,16 +51,45 @@ def load_image(path: str | Path) -> LoadedImage:
     return LoadedImage(path=image_path, image_format=image_format, content=content)
 
 
+def load_image_bytes(content: bytes, filename: str) -> LoadedImage:
+    """Validate uploaded image bytes without writing them to disk."""
+    path = Path(filename)
+    image_format = SUPPORTED_EXTENSIONS.get(path.suffix.lower())
+    if image_format is None:
+        raise InvalidImageFormatError(
+            "Unsupported image format. Only .jpg, .jpeg and .png files are allowed."
+        )
+    if not content:
+        raise InvalidImageFormatError("Image file must not be empty.")
+    _validate_signature(content=content, image_format=image_format, path=path)
+    return LoadedImage(path=path, image_format=image_format, content=content)
+
+
 def _validate_signature(*, content: bytes, image_format: ImageFormat, path: Path) -> None:
     """Validate the image signature for supported formats."""
+    if _has_expected_signature(content=content, image_format=image_format):
+        return
+
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            image.verify()
+            detected_format = image.format
+    except (SyntaxError, UnidentifiedImageError, OSError) as exc:
+        raise InvalidImageFormatError(
+            f"Invalid {image_format.value.upper()} file: {path}"
+        ) from exc
+
+    allowed_formats = PIL_FORMATS_BY_EXTENSION.get(image_format)
+    if allowed_formats is None or detected_format not in allowed_formats:
+        raise InvalidImageFormatError(
+            f"Invalid {image_format.value.upper()} file: {path}"
+        )
+
+
+def _has_expected_signature(*, content: bytes, image_format: ImageFormat) -> bool:
+    """Return whether content has the standard signature for the declared extension."""
     if image_format is ImageFormat.PNG:
-        if not content.startswith(PNG_SIGNATURE):
-            raise InvalidImageFormatError(f"Invalid PNG file: {path}")
-        return
-
+        return content.startswith(PNG_SIGNATURE)
     if image_format is ImageFormat.JPG:
-        if not (content.startswith(JPEG_SOI) and content.endswith(JPEG_EOI)):
-            raise InvalidImageFormatError(f"Invalid JPG file: {path}")
-        return
-
-    raise InvalidImageFormatError(f"Unsupported image format: {path}")
+        return content.startswith(JPEG_SOI) and content.endswith(JPEG_EOI)
+    return False

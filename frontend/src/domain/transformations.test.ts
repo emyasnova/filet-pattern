@@ -10,6 +10,7 @@ import {
 describe('pattern transformations', () => {
   const pattern: Pattern = {
     id: 'sample',
+    name: 'Sample',
     category: 'uncategorized',
     tags: [],
     width: 3,
@@ -18,6 +19,7 @@ describe('pattern transformations', () => {
       [1, 0, null],
       [0, 1, 1],
     ],
+    createdAt: '2026-08-17T00:00:00Z',
   };
 
   it('rotates a pattern 90 degrees clockwise', () => {

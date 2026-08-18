@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import type { DragEvent } from 'react';
 
 import type { Pattern } from '../../../domain/pattern';
@@ -16,14 +16,16 @@ interface PatternCardProps {
   pattern: Pattern;
 }
 
-export function PatternCard({ pattern, onDragEnd, onDragStart }: PatternCardProps) {
+export const PatternCard = memo(function PatternCard({ pattern, onDragEnd, onDragStart }: PatternCardProps) {
   const [transformedPattern, setTransformedPattern] = useState(pattern);
-  const title = transformedPattern.name ?? transformedPattern.char ?? transformedPattern.id;
+  const title = transformedPattern.name;
 
   const handleDragStart = (event: DragEvent<HTMLElement>) => {
     onDragStart(transformedPattern);
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('text/plain', transformedPattern.id);
+    const preview = event.currentTarget.querySelector('canvas');
+    if (preview) event.dataTransfer.setDragImage(preview, preview.clientWidth / 2, preview.clientHeight / 2);
   };
 
   return (
@@ -68,4 +70,4 @@ export function PatternCard({ pattern, onDragEnd, onDragStart }: PatternCardProp
       </div>
     </article>
   );
-}
+});

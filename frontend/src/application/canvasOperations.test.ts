@@ -16,6 +16,7 @@ import {
   rotateCanvasBlockClockwise,
 } from './canvasBlockOperations';
 import { createEmptyCanvas } from './createEmptyCanvas';
+import { paintCanvasCells } from './paintCanvasCells';
 import { resizeCanvas } from './resizeCanvas';
 import { setCanvasCell } from './setCanvasCell';
 import { toggleCanvasCell } from './toggleCanvasCell';
@@ -162,6 +163,7 @@ describe('canvas operations', () => {
     };
     const pattern: Pattern = {
       id: 'sample',
+      name: 'Sample',
       category: 'uncategorized',
       tags: [],
       width: 2,
@@ -170,6 +172,7 @@ describe('canvas operations', () => {
         [0, null],
         [1, 0],
       ],
+      createdAt: '2026-08-17T00:00:00Z',
     };
 
     const result = applyPatternToCanvas(canvas, pattern, 1, 1);
@@ -184,6 +187,27 @@ describe('canvas operations', () => {
       [1, 1, 1],
       [1, 1, 1],
     ]);
+    expect(result.cells[0]).toBe(canvas.cells[0]);
+    expect(result.cells[1]).not.toBe(canvas.cells[1]);
+  });
+
+  it('paints multiple cells in one update and clones only changed rows', () => {
+    const canvas = createEmptyCanvas(3, 3);
+    const result = paintCanvasCells(canvas, [
+      { row: 0, col: 1, value: 1 },
+      { row: 0, col: 2, value: 1 },
+      { row: 2, col: 0, value: 1 },
+    ]);
+
+    expect(result.cells).toEqual([
+      [0, 1, 1],
+      [0, 0, 0],
+      [1, 0, 0],
+    ]);
+    expect(result.cells[0]).not.toBe(canvas.cells[0]);
+    expect(result.cells[1]).toBe(canvas.cells[1]);
+    expect(result.cells[2]).not.toBe(canvas.cells[2]);
+    expect(paintCanvasCells(result, [{ row: 0, col: 1, value: 1 }])).toBe(result);
   });
 
   it('keeps filled canvas cells under transparent normalized pattern cells', () => {
@@ -200,6 +224,7 @@ describe('canvas operations', () => {
     };
     const pattern: Pattern = {
       id: 'normalized',
+      name: 'Normalized',
       category: 'uncategorized',
       tags: [],
       width: 3,
@@ -209,6 +234,7 @@ describe('canvas operations', () => {
         [1, 0, 1],
         [null, 1, null],
       ],
+      createdAt: '2026-08-17T00:00:00Z',
     };
 
     const result = applyPatternToCanvas(canvas, pattern, 1, 1);
@@ -225,6 +251,7 @@ describe('canvas operations', () => {
   it('clips a pattern at canvas boundaries', () => {
     const pattern: Pattern = {
       id: 'sample',
+      name: 'Sample',
       category: 'uncategorized',
       tags: [],
       width: 2,
@@ -233,6 +260,7 @@ describe('canvas operations', () => {
         [1, 1],
         [1, 1],
       ],
+      createdAt: '2026-08-17T00:00:00Z',
     };
 
     const result = applyPatternToCanvas(createEmptyCanvas(2, 2), pattern, 1, 1);

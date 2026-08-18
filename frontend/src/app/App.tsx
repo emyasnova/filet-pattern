@@ -22,7 +22,6 @@ import { SizeControls } from '../ui/components/SizeControls/SizeControls';
 import { Toolbar } from '../ui/components/Toolbar/Toolbar';
 import { useCanvasState } from '../ui/hooks/useCanvasState';
 import { useDragPattern } from '../ui/hooks/useDragPattern';
-import { usePatterns } from '../ui/hooks/usePatterns';
 import './App.css';
 
 export function App() {
@@ -34,14 +33,12 @@ export function App() {
     clear,
     clearBlock,
     fillBlock,
+    paintCells,
     pasteBlock,
     replaceCanvas,
     resize,
-    setCell,
-    toggleCell,
   } = useCanvasState();
   const { clearDraggedPattern, draggedPattern, startDragPattern } = useDragPattern();
-  const { patterns, errors, isLoading } = usePatterns();
   const [blockClipboard, setBlockClipboard] = useState<CanvasBlock | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -251,10 +248,9 @@ export function App() {
             applyPattern(pattern, row, col);
             clearDraggedPattern();
           }}
+          onPaintCells={paintCells}
           onSelectRect={setSelection}
           onSelectionContextMenu={(left, top) => setSelectionContextMenu({ left, top })}
-          onSetCell={setCell}
-          onToggleCell={toggleCell}
           selection={selection}
         />
 
@@ -275,13 +271,10 @@ export function App() {
         ) : null}
       </section>
 
-      <PatternPanel
-        patterns={patterns}
-        errors={errors}
-        isLoading={isLoading}
-        onPatternDragEnd={clearDraggedPattern}
-        onPatternDragStart={startDragPattern}
-      />
+          <PatternPanel
+            onPatternDragEnd={clearDraggedPattern}
+            onPatternDragStart={startDragPattern}
+          />
     </main>
   );
 }

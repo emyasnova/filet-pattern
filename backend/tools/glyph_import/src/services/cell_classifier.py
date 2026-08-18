@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.domain.models import CellClassificationResult, CellExtractionResult, ClassifiedCell, ExtractedCell
+from ..domain.models import CellClassificationResult, CellExtractionResult, ClassifiedCell, ExtractedCell
 
 
 DEFAULT_FILL_THRESHOLD = 0.35

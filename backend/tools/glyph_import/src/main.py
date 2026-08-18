@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Sequence
 
 from src.domain.models import (
+    BatchCropSummary,
     BatchImportSummary,
+    CropOptions,
+    CropResult,
     ExtractionOptions,
     ExtractionResult,
     ImportPipelineOptions,
@@ -16,6 +19,11 @@ from src.domain.models import (
 )
 from src.services.cell_classifier import DEFAULT_FILL_THRESHOLD
 from src.config import get_default_config
+from src.pipelines.crop_pipeline import (
+    CropPipelineError,
+    run_batch_crop_pipeline,
+    run_crop_pipeline,
+)
 from src.pipelines.extraction_pipeline import ExtractionPipelineError, run_extraction_pipeline
 from src.pipelines.import_pipeline import (
     ImportPipelineError,
@@ -50,17 +58,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--input",
         type=Path,
-        help="Path to the source image file.",
+        help="Path to the source image file or batch/crop input directory.",
     )
     parser.add_argument(
         "--batch",
         action="store_true",
-        help="Process all supported files from input/extracted using filename stems as chars.",
+        help="Process supported files from input/extracted or an explicit input directory.",
     )
     parser.add_argument(
         "--extract",
         action="store_true",
         help="Extract separate symbol crops from one multi-symbol jpg/png image.",
+    )
+    parser.add_argument(
+        "--crop",
+        action="store_true",
+        help="Crop source image file or directory images to the outer scheme grid.",
     )
     parser.add_argument(
         "--char",
@@ -164,6 +177,9 @@ def run(argv: Sequence[str] | None = None) -> int:
     if not 0 <= args.threshold <= 255:
         parser.error("threshold must be in the range 0..255.")
 
+    if not 0 <= args.fill_threshold <= 1:
+        parser.error("fill_threshold must be in the range 0..1.")
+
     if args.denoise_size <= 0 or args.denoise_size % 2 == 0:
         parser.error("denoise-size must be a positive odd integer.")
 
@@ -197,17 +213,23 @@ def run(argv: Sequence[str] | None = None) -> int:
     if args.crop_padding < 0:
         parser.error("crop-padding must not be negative.")
 
-    if args.extract and args.batch:
-        parser.error("--extract cannot be used together with --batch.")
+    selected_modes = sum(1 for enabled in (args.extract, args.batch, args.crop) if enabled)
+    if selected_modes > 1:
+        parser.error("--extract, --batch, and --crop are mutually exclusive.")
 
-    if args.extract:
+    if args.crop:
+        if args.input is None:
+            parser.error("--input is required for the crop command.")
+        if args.char:
+            parser.error("--char cannot be used together with --crop.")
+    elif args.extract:
         if args.input is None:
             parser.error("--input is required for the extraction command.")
         if args.char:
             parser.error("--char cannot be used together with --extract.")
     elif args.batch:
-        if args.input is not None:
-            parser.error("--input cannot be used together with --batch.")
+        if args.input is not None and not args.input.is_dir():
+            parser.error("batch input must be a directory.")
         if args.char:
             parser.error("--char cannot be used together with --batch.")
     else:
@@ -228,6 +250,49 @@ def run(argv: Sequence[str] | None = None) -> int:
         preview_cell_size=args.preview_cell_size,
         debug=args.debug,
     )
+
+    if args.crop:
+        crop_options = CropOptions(
+            threshold=args.threshold,
+            denoise=not args.no_denoise,
+            denoise_filter_size=args.denoise_size,
+            crop_padding=args.crop_padding,
+            debug=args.debug,
+        )
+        if args.input.is_dir():
+            try:
+                crop_summary = run_batch_crop_pipeline(
+                    input_dir=args.input,
+                    config=config,
+                    options=crop_options,
+                )
+            except CropPipelineError as exc:
+                parser.error(str(exc))
+
+            _emit_batch_crop_summary(logger, crop_summary, debug=args.debug)
+            logging.shutdown()
+            return 1 if crop_summary.failure_count else 0
+
+        try:
+            crop_result = run_crop_pipeline(
+                input_path=args.input,
+                config=config,
+                options=crop_options,
+            )
+        except CropPipelineError as exc:
+            parser.error(str(exc))
+
+        _emit_crop_result(
+            logger,
+            crop_result,
+            project_root=config.project_root,
+            prepared_dir=config.prepared_dir,
+            debug_dir=config.input_debug_dir,
+            log_file=config.log_file,
+            debug=args.debug,
+        )
+        logging.shutdown()
+        return 0
 
     if args.extract:
         extraction_options = ExtractionOptions(
@@ -267,6 +332,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             batch_summary = run_batch_import_pipeline(
                 config=config,
                 options=options,
+                input_dir=args.input,
             )
         except ImportPipelineError as exc:
             parser.error(str(exc))
@@ -428,6 +494,78 @@ def _emit_batch_summary(
             )
     emit_debug(logger, debug, "Debug mode: enabled")
     emit_status(logger, "Batch import completed.")
+
+
+def _emit_crop_result(
+    logger: logging.Logger,
+    crop_result: CropResult,
+    *,
+    project_root: Path,
+    prepared_dir: Path,
+    debug_dir: Path,
+    log_file: Path,
+    debug: bool,
+) -> None:
+    """Print crop-mode status and artifact paths."""
+    emit_status(logger, "Project root: %s", project_root)
+    emit_status(logger, "Crop input image: %s", crop_result.loaded_image.path)
+    emit_status(logger, "Image format: %s", crop_result.loaded_image.image_format)
+    emit_status(logger, "Prepared dir: %s", prepared_dir)
+    emit_status(logger, "Crop debug dir: %s", debug_dir)
+    emit_status(logger, "Log file: %s", log_file)
+    emit_status(
+        logger,
+        "Crop bounds: left=%s top=%s right=%s bottom=%s",
+        crop_result.bounds.left,
+        crop_result.bounds.top,
+        crop_result.bounds.right,
+        crop_result.bounds.bottom,
+    )
+    emit_status(
+        logger,
+        "Cropped image size: width=%s height=%s",
+        crop_result.width,
+        crop_result.height,
+    )
+    emit_status(logger, "Cropped image: %s", crop_result.output_path)
+    emit_status(logger, "Crop overlay debug image: %s", crop_result.overlay_debug_path)
+    emit_debug(logger, debug, "Debug mode: enabled")
+    emit_debug(logger, debug, "Crop threshold: %s", crop_result.options.threshold)
+    emit_debug(logger, debug, "Denoise enabled: %s", crop_result.options.denoise)
+    emit_debug(logger, debug, "Denoise filter size: %s", crop_result.options.denoise_filter_size)
+    emit_debug(logger, debug, "Crop padding: %s", crop_result.options.crop_padding)
+    emit_status(logger, "Crop completed.")
+
+
+def _emit_batch_crop_summary(
+    logger: logging.Logger,
+    crop_summary: BatchCropSummary,
+    *,
+    debug: bool,
+) -> None:
+    """Print batch crop results and summary."""
+    emit_status(logger, "Batch crop input dir: %s", crop_summary.input_dir)
+    emit_status(logger, "Batch crop processed files: %s", crop_summary.processed_count)
+    emit_status(logger, "Batch crop successful files: %s", crop_summary.success_count)
+    emit_status(logger, "Batch crop failed files: %s", crop_summary.failure_count)
+    for item in crop_summary.items:
+        if item.success:
+            emit_status(
+                logger,
+                "Batch crop item OK: input=%s output=%s overlay=%s",
+                item.input_path,
+                item.crop_result.output_path if item.crop_result else "",
+                item.crop_result.overlay_debug_path if item.crop_result else "",
+            )
+        else:
+            emit_status(
+                logger,
+                "Batch crop item ERROR: input=%s error=%s",
+                item.input_path,
+                item.error_message,
+            )
+    emit_debug(logger, debug, "Debug mode: enabled")
+    emit_status(logger, "Batch crop completed.")
 
 
 def _emit_extraction_result(

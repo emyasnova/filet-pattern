@@ -132,11 +132,16 @@ def run_batch_import_pipeline(
     *,
     config: AppConfig,
     options: ImportPipelineOptions,
+    input_dir: str | Path | None = None,
 ) -> BatchImportSummary:
-    """Run the import pipeline for every supported file found in `input/extracted`."""
-    input_paths = _find_batch_input_paths(config.extracted_dir)
+    """Run the import pipeline for every supported file found in the batch input dir."""
+    batch_input_dir = Path(input_dir).resolve() if input_dir is not None else config.extracted_dir
+    input_paths = _find_batch_input_paths(
+        batch_input_dir,
+        require_single_character_stem=input_dir is None,
+    )
     if not input_paths:
-        raise ImportPipelineError(f"No supported input files found in: {config.extracted_dir}")
+        raise ImportPipelineError(f"No supported input files found in: {batch_input_dir}")
 
     items: list[BatchImportItemResult] = []
     for input_path in input_paths:
@@ -171,7 +176,7 @@ def run_batch_import_pipeline(
     success_count = sum(1 for item in items if item.success)
     failure_count = len(items) - success_count
     return BatchImportSummary(
-        input_dir=config.extracted_dir,
+        input_dir=batch_input_dir,
         processed_count=len(items),
         success_count=success_count,
         failure_count=failure_count,
@@ -179,7 +184,11 @@ def run_batch_import_pipeline(
     )
 
 
-def _find_batch_input_paths(input_dir: Path) -> tuple[Path, ...]:
+def _find_batch_input_paths(
+    input_dir: Path,
+    *,
+    require_single_character_stem: bool = True,
+) -> tuple[Path, ...]:
     """Return supported one-symbol image files from the input directory in stable order."""
     if not input_dir.exists() or not input_dir.is_dir():
         return ()
@@ -192,7 +201,10 @@ def _find_batch_input_paths(input_dir: Path) -> tuple[Path, ...]:
                 if (
                     path.is_file()
                     and path.suffix.lower() in SUPPORTED_EXTENSIONS
-                    and len(path.stem) == 1
+                    and (
+                        not require_single_character_stem
+                        or len(path.stem) == 1
+                    )
                 )
             ),
             key=lambda path: (path.stem, path.suffix.lower()),

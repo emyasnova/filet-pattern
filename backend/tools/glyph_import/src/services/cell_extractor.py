@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.domain.models import (
+from ..domain.models import (
     CellBounds,
     CellExtractionResult,
     ExtractedCell,

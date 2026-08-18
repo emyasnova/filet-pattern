@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.domain.models import CellClassificationResult, MatrixBuildResult
+from ..domain.models import CellClassificationResult, MatrixBuildResult
 
 
 class MatrixBuildError(ValueError):

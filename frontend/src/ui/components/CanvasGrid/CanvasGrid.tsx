@@ -1,15 +1,18 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, MouseEvent, PointerEvent } from 'react';
 
+import type { CanvasCellUpdate } from '../../../application/paintCanvasCells';
 import type { CanvasState } from '../../../domain/canvas';
 import type { CanvasCell } from '../../../domain/cell';
 import type { Pattern } from '../../../domain/pattern';
-import type {
-  CellPosition,
-  NormalizedSelectionRect,
-  SelectionRect,
-} from '../../../domain/selection';
+import type { CellPosition, SelectionRect } from '../../../domain/selection';
 import { createSelectionRect, normalizeSelectionRect } from '../../../domain/selection';
+import {
+  CANVAS_CELL_SIZE,
+  getCanvasCellAtPoint,
+  getVisibleCellBounds,
+  type CanvasViewport,
+} from './canvasGeometry';
 import './CanvasGrid.css';
 
 interface CanvasGridProps {
@@ -17,415 +20,273 @@ interface CanvasGridProps {
   draggedPattern: Pattern | null;
   isSelectionMode: boolean;
   onDropPattern: (pattern: Pattern, row: number, col: number) => void;
+  onPaintCells: (updates: readonly CanvasCellUpdate[]) => void;
   onSelectRect: (selection: SelectionRect) => void;
   onSelectionContextMenu: (left: number, top: number) => void;
-  onSetCell: (row: number, col: number, value: CanvasCell) => void;
-  onToggleCell: (row: number, col: number) => void;
   selection: SelectionRect | null;
-}
-
-interface CanvasRowProps {
-  row: number;
-  cells: CanvasCell[];
-  selection: NormalizedSelectionRect | null;
-}
-
-interface PreviewPosition {
-  row: number;
-  col: number;
 }
 
 interface DrawingState {
   value: CanvasCell;
-  lastCellKey: string;
+  updates: Map<string, CanvasCellUpdate>;
 }
 
-const CanvasRow = memo(function CanvasRow({ row, cells, selection }: CanvasRowProps) {
-  const rowClassName = ['canvas-row', (row + 1) % 10 === 0 ? 'block-bottom' : '']
-    .filter(Boolean)
-    .join(' ');
-
-  return (
-    <div className={rowClassName} role="row">
-      {cells.map((cell, col) => {
-        const isFilled = cell === 1;
-        const isSelected = Boolean(
-          selection &&
-            row >= selection.top &&
-            row <= selection.bottom &&
-            col >= selection.left &&
-            col <= selection.right,
-        );
-        const className = [
-          'canvas-cell',
-          isFilled ? 'filled' : '',
-          isSelected ? 'selected' : '',
-          (col + 1) % 10 === 0 ? 'block-right' : '',
-        ]
-          .filter(Boolean)
-          .join(' ');
-
-        return (
-          <div
-            className={className}
-            data-col={col}
-            data-row={row}
-            key={col}
-            role="gridcell"
-            aria-label={`Клетка ${row + 1}, ${col + 1}`}
-            aria-selected={isFilled}
-          />
-        );
-      })}
-    </div>
-  );
-});
+const EMPTY_VIEWPORT: CanvasViewport = { scrollLeft: 0, scrollTop: 0, width: 1, height: 1 };
 
 export function CanvasGrid({
   canvas,
   draggedPattern,
   isSelectionMode,
   onDropPattern,
+  onPaintCells,
   onSelectRect,
   onSelectionContextMenu,
-  onSetCell,
-  onToggleCell,
   selection,
 }: CanvasGridProps) {
-  const [drawingState, setDrawingState] = useState<DrawingState | null>(null);
-  const [previewPosition, setPreviewPosition] = useState<PreviewPosition | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingRef = useRef<DrawingState | null>(null);
+  const previewFrameRef = useRef<number | null>(null);
+  const pendingPreviewRef = useRef<CellPosition | null>(null);
+  const [viewport, setViewport] = useState<CanvasViewport>(EMPTY_VIEWPORT);
+  const [previewPosition, setPreviewPosition] = useState<CellPosition | null>(null);
   const [selectionStart, setSelectionStart] = useState<CellPosition | null>(null);
   const [draftSelection, setDraftSelection] = useState<SelectionRect | null>(null);
+  const [drawingVersion, setDrawingVersion] = useState(0);
 
-  const activeSelection = draftSelection ?? selection;
-  const effectiveSelection = useMemo(
-    () => (activeSelection ? normalizeSelectionRect(activeSelection) : null),
-    [activeSelection],
+  const activeSelection = useMemo(
+    () => (draftSelection ?? selection ? normalizeSelectionRect((draftSelection ?? selection)!) : null),
+    [draftSelection, selection],
   );
 
-  const handlePointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      const position = getCellPosition(event.target);
-
-      if (!position) {
-        return;
-      }
-
-      if (isSelectionMode) {
-        event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-
-        const nextSelection = createSelectionRect(position, position);
-        setSelectionStart(position);
-        setDraftSelection(nextSelection);
-        onSelectRect(nextSelection);
-        return;
-      }
-
-      event.preventDefault();
-      event.currentTarget.setPointerCapture(event.pointerId);
-
-      const nextValue: CanvasCell = canvas.cells[position.row][position.col] === 1 ? 0 : 1;
-      setDrawingState({
-        value: nextValue,
-        lastCellKey: getCellKey(position),
-      });
-      onToggleCell(position.row, position.col);
-    },
-    [canvas.cells, isSelectionMode, onSelectRect, onToggleCell],
-  );
-
-  const handlePointerMove = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (drawingState) {
-        const target = document.elementFromPoint(event.clientX, event.clientY);
-
-        if (!target || !event.currentTarget.contains(target)) {
-          return;
-        }
-
-        const position = getCellPosition(target);
-
-        if (!position) {
-          return;
-        }
-
-        const cellKey = getCellKey(position);
-
-        if (cellKey === drawingState.lastCellKey) {
-          return;
-        }
-
-        setDrawingState({
-          ...drawingState,
-          lastCellKey: cellKey,
-        });
-        onSetCell(position.row, position.col, drawingState.value);
-        return;
-      }
-
-      if (!selectionStart) {
-        return;
-      }
-
-      const target = document.elementFromPoint(event.clientX, event.clientY);
-
-      if (!target || !event.currentTarget.contains(target)) {
-        return;
-      }
-
-      const position = getCellPosition(target);
-
-      if (!position) {
-        return;
-      }
-
-      const nextSelection = createSelectionRect(selectionStart, position);
-      setDraftSelection(nextSelection);
-      onSelectRect(nextSelection);
-    },
-    [drawingState, onSelectRect, onSetCell, selectionStart],
-  );
-
-  const handlePointerUp = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (drawingState) {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-
-        setDrawingState(null);
-        return;
-      }
-
-      if (!selectionStart) {
-        return;
-      }
-
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
-
-      setSelectionStart(null);
-      setDraftSelection(null);
-    },
-    [drawingState, selectionStart],
-  );
-
-  const handleDragOver = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      if (!draggedPattern) {
-        return;
-      }
-
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'copy';
-
-      const cell = (event.target as HTMLElement).closest<HTMLElement>('.canvas-cell');
-
-      if (!cell) {
-        setPreviewPosition(null);
-        return;
-      }
-
-      const row = Number(cell.dataset.row);
-      const col = Number(cell.dataset.col);
-
-      if (!Number.isInteger(row) || !Number.isInteger(col)) {
-        setPreviewPosition(null);
-        return;
-      }
-
-      setPreviewPosition((current) => {
-        if (current?.row === row && current.col === col) {
-          return current;
-        }
-
-        return { row, col };
-      });
-    },
-    [draggedPattern],
-  );
-
-  const handleDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
-    const nextTarget = event.relatedTarget;
-
-    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-      return;
-    }
-
-    setPreviewPosition(null);
+  const measureViewport = useCallback(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    setViewport({
+      scrollLeft: frame.scrollLeft,
+      scrollTop: frame.scrollTop,
+      width: frame.clientWidth,
+      height: frame.clientHeight,
+    });
   }, []);
 
-  const handleDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      setPreviewPosition(null);
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    measureViewport();
+    const observer = new ResizeObserver(measureViewport);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [measureViewport]);
 
-      if (!draggedPattern) {
-        return;
-      }
+  useEffect(() => () => {
+    if (previewFrameRef.current !== null) cancelAnimationFrame(previewFrameRef.current);
+  }, []);
 
-      const cell = (event.target as HTMLElement).closest<HTMLElement>('.canvas-cell');
+  useLayoutEffect(() => {
+    const element = canvasRef.current;
+    if (!element) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const cssWidth = Math.max(1, Math.min(viewport.width, canvas.width * CANVAS_CELL_SIZE));
+    const cssHeight = Math.max(1, Math.min(viewport.height, canvas.height * CANVAS_CELL_SIZE));
+    element.style.width = `${cssWidth}px`;
+    element.style.height = `${cssHeight}px`;
+    element.width = Math.ceil(cssWidth * ratio);
+    element.height = Math.ceil(cssHeight * ratio);
+    const context = element.getContext('2d');
+    if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    drawCanvas(context, canvas, viewport, activeSelection, previewPosition, draggedPattern, drawingRef.current);
+  }, [activeSelection, canvas, draggedPattern, drawingVersion, previewPosition, viewport]);
 
-      if (!cell) {
-        return;
-      }
+  const pointFromEvent = (clientX: number, clientY: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return getCanvasCellAtPoint(
+      clientX - rect.left,
+      clientY - rect.top,
+      viewport,
+      canvas.width,
+      canvas.height,
+    );
+  };
 
-      const row = Number(cell.dataset.row);
-      const col = Number(cell.dataset.col);
+  const addPaintCell = (position: CellPosition) => {
+    const drawing = drawingRef.current;
+    if (!drawing) return;
+    const key = `${position.row}:${position.col}`;
+    if (drawing.updates.has(key)) return;
+    drawing.updates.set(key, { ...position, value: drawing.value });
+    setDrawingVersion((version) => version + 1);
+  };
 
-      if (!Number.isInteger(row) || !Number.isInteger(col)) {
-        return;
-      }
-
-      onDropPattern(draggedPattern, row, col);
-    },
-    [draggedPattern, onDropPattern],
-  );
-
-  const handleContextMenu = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
-      if (!effectiveSelection) {
-        return;
-      }
-
-      const position = getCellPosition(event.target);
-
-      if (
-        !position ||
-        position.row < effectiveSelection.top ||
-        position.row > effectiveSelection.bottom ||
-        position.col < effectiveSelection.left ||
-        position.col > effectiveSelection.right
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      onSelectionContextMenu(event.clientX, event.clientY);
-    },
-    [effectiveSelection, onSelectionContextMenu],
-  );
-
-  const previewCells = useMemo(() => {
-    if (!draggedPattern || !previewPosition) {
-      return [];
+  const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (event.button !== 0) return;
+    const position = pointFromEvent(event.clientX, event.clientY);
+    if (!position) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if (isSelectionMode) {
+      const next = createSelectionRect(position, position);
+      setSelectionStart(position);
+      setDraftSelection(next);
+      onSelectRect(next);
+      return;
     }
+    drawingRef.current = {
+      value: canvas.cells[position.row][position.col] === 1 ? 0 : 1,
+      updates: new Map(),
+    };
+    addPaintCell(position);
+  };
 
-    const cells: Array<{
-      cell: CanvasCell;
-      key: string;
-      rowOffset: number;
-      colOffset: number;
-    }> = [];
-
-    for (let patternRow = 0; patternRow < draggedPattern.height; patternRow += 1) {
-      const canvasRow = previewPosition.row + patternRow;
-
-      if (canvasRow < 0 || canvasRow >= canvas.height) {
-        continue;
-      }
-
-      for (let patternCol = 0; patternCol < draggedPattern.width; patternCol += 1) {
-        const canvasCol = previewPosition.col + patternCol;
-
-        if (canvasCol < 0 || canvasCol >= canvas.width) {
-          continue;
-        }
-
-        const cell = draggedPattern.cells[patternRow][patternCol];
-
-        if (cell === null) {
-          continue;
-        }
-
-        cells.push({
-          cell,
-          key: `${patternRow}-${patternCol}`,
-          rowOffset: patternRow,
-          colOffset: patternCol,
-        });
-      }
+  const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
+    const position = pointFromEvent(event.clientX, event.clientY);
+    if (!position) return;
+    if (drawingRef.current) {
+      addPaintCell(position);
+    } else if (selectionStart) {
+      const next = createSelectionRect(selectionStart, position);
+      setDraftSelection(next);
+      onSelectRect(next);
     }
+  };
 
-    return cells;
-  }, [canvas.height, canvas.width, draggedPattern, previewPosition]);
+  const handlePointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (drawingRef.current) {
+      const updates = [...drawingRef.current.updates.values()];
+      drawingRef.current = null;
+      setDrawingVersion((version) => version + 1);
+      onPaintCells(updates);
+    }
+    setSelectionStart(null);
+    setDraftSelection(null);
+  };
+
+  const schedulePreview = (position: CellPosition | null) => {
+    pendingPreviewRef.current = position;
+    if (previewFrameRef.current !== null) return;
+    previewFrameRef.current = requestAnimationFrame(() => {
+      previewFrameRef.current = null;
+      setPreviewPosition(pendingPreviewRef.current);
+    });
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLCanvasElement>) => {
+    if (!draggedPattern) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    schedulePreview(pointFromEvent(event.clientX, event.clientY));
+  };
+
+  const handleDrop = (event: DragEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
+    const position = pointFromEvent(event.clientX, event.clientY);
+    schedulePreview(null);
+    if (draggedPattern && position) onDropPattern(draggedPattern, position.row, position.col);
+  };
+
+  const handleContextMenu = (event: MouseEvent<HTMLCanvasElement>) => {
+    if (!activeSelection) return;
+    const position = pointFromEvent(event.clientX, event.clientY);
+    if (!position || position.row < activeSelection.top || position.row > activeSelection.bottom || position.col < activeSelection.left || position.col > activeSelection.right) return;
+    event.preventDefault();
+    onSelectionContextMenu(event.clientX, event.clientY);
+  };
 
   return (
-    <div className="canvas-grid-frame">
+    <div className="canvas-grid-frame" ref={frameRef} onScroll={measureViewport}>
       <div
-        className={['canvas-grid', isSelectionMode ? 'selection-mode' : '']
-          .filter(Boolean)
-          .join(' ')}
-        role="grid"
-        aria-label={`Рабочая область ${canvas.width} x ${canvas.height}`}
-        onContextMenu={handleContextMenu}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerCancel={handlePointerUp}
-        onPointerUp={handlePointerUp}
+        className="canvas-grid-surface"
+        style={{ width: canvas.width * CANVAS_CELL_SIZE, height: canvas.height * CANVAS_CELL_SIZE }}
       >
-        {canvas.cells.map((row, rowIndex) => (
-          <CanvasRow
-            cells={row}
-            key={rowIndex}
-            row={rowIndex}
-            selection={effectiveSelection}
-          />
-        ))}
-
-        {draggedPattern && previewPosition && previewCells.length > 0 ? (
-          <div className="canvas-drop-preview" aria-hidden="true">
-            {previewCells.map((previewCell) => (
-              <span
-                className={[
-                  'canvas-drop-preview-cell',
-                  previewCell.cell === 1 ? 'fill' : 'clear',
-                ].join(' ')}
-                key={previewCell.key}
-                style={{
-                  transform: `translate(${(previewPosition.col + previewCell.colOffset) * 18}px, ${
-                    (previewPosition.row + previewCell.rowOffset) * 18
-                  }px)`,
-                }}
-              />
-            ))}
-          </div>
-        ) : null}
+        <canvas
+          ref={canvasRef}
+          className={isSelectionMode ? 'canvas-grid selection-mode' : 'canvas-grid'}
+          role="grid"
+          aria-label={`Рабочая область ${canvas.width} x ${canvas.height}`}
+          onContextMenu={handleContextMenu}
+          onDragOver={handleDragOver}
+          onDragLeave={() => schedulePreview(null)}
+          onDrop={handleDrop}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerCancel={handlePointerUp}
+          onPointerUp={handlePointerUp}
+        />
       </div>
     </div>
   );
 }
 
-function getCellPosition(target: EventTarget | null): CellPosition | null {
-  if (!(target instanceof HTMLElement)) {
-    return null;
+function drawCanvas(
+  context: CanvasRenderingContext2D,
+  canvas: CanvasState,
+  viewport: CanvasViewport,
+  selection: ReturnType<typeof normalizeSelectionRect> | null,
+  preview: CellPosition | null,
+  pattern: Pattern | null,
+  drawing: DrawingState | null,
+) {
+  context.clearRect(0, 0, viewport.width, viewport.height);
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, viewport.width, viewport.height);
+  const bounds = getVisibleCellBounds(viewport, canvas.width, canvas.height);
+  const draft = drawing?.updates;
+
+  for (let row = bounds.top; row <= bounds.bottom; row += 1) {
+    for (let col = bounds.left; col <= bounds.right; col += 1) {
+      const x = col * CANVAS_CELL_SIZE - viewport.scrollLeft;
+      const y = row * CANVAS_CELL_SIZE - viewport.scrollTop;
+      const value = draft?.get(`${row}:${col}`)?.value ?? canvas.cells[row][col];
+      context.fillStyle = value === 1 ? '#111111' : '#ffffff';
+      context.fillRect(x, y, CANVAS_CELL_SIZE, CANVAS_CELL_SIZE);
+      context.strokeStyle = '#d6dbe3';
+      context.lineWidth = 1;
+      context.strokeRect(x + 0.5, y + 0.5, CANVAS_CELL_SIZE, CANVAS_CELL_SIZE);
+      if ((col + 1) % 10 === 0) {
+        context.strokeStyle = '#727986';
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(x + CANVAS_CELL_SIZE, y);
+        context.lineTo(x + CANVAS_CELL_SIZE, y + CANVAS_CELL_SIZE);
+        context.stroke();
+      }
+      if ((row + 1) % 10 === 0) {
+        context.strokeStyle = '#727986';
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(x, y + CANVAS_CELL_SIZE);
+        context.lineTo(x + CANVAS_CELL_SIZE, y + CANVAS_CELL_SIZE);
+        context.stroke();
+      }
+      if (selection && row >= selection.top && row <= selection.bottom && col >= selection.left && col <= selection.right) {
+        context.strokeStyle = '#2f6fed';
+        context.lineWidth = 2;
+        context.strokeRect(x + 1, y + 1, CANVAS_CELL_SIZE - 2, CANVAS_CELL_SIZE - 2);
+      }
+    }
   }
 
-  const cell = target.closest<HTMLElement>('.canvas-cell');
-
-  if (!cell) {
-    return null;
+  if (!preview || !pattern) return;
+  for (let row = bounds.top; row <= bounds.bottom; row += 1) {
+    const patternRow = row - preview.row;
+    if (patternRow < 0 || patternRow >= pattern.height) continue;
+    for (let col = bounds.left; col <= bounds.right; col += 1) {
+      const patternCol = col - preview.col;
+      if (patternCol < 0 || patternCol >= pattern.width) continue;
+      const value = pattern.cells[patternRow][patternCol];
+      if (value === null) continue;
+      const x = col * CANVAS_CELL_SIZE - viewport.scrollLeft;
+      const y = row * CANVAS_CELL_SIZE - viewport.scrollTop;
+      context.fillStyle = value === 1 ? 'rgba(17,17,17,.45)' : 'rgba(255,255,255,.65)';
+      context.fillRect(x, y, CANVAS_CELL_SIZE, CANVAS_CELL_SIZE);
+      context.strokeStyle = 'rgba(47,111,237,.8)';
+      context.lineWidth = 2;
+      context.strokeRect(x + 1, y + 1, CANVAS_CELL_SIZE - 2, CANVAS_CELL_SIZE - 2);
+    }
   }
-
-  const row = Number(cell.dataset.row);
-  const col = Number(cell.dataset.col);
-
-  if (!Number.isInteger(row) || !Number.isInteger(col)) {
-    return null;
-  }
-
-  return { row, col };
-}
-
-function getCellKey(position: CellPosition): string {
-  return `${position.row}:${position.col}`;
 }

@@ -8,6 +8,7 @@ import pytest
 from PIL import Image, ImageDraw
 
 from src.config import AppConfig
+from src.domain.models import BatchImportSummary
 from src.main import build_parser, run
 
 
@@ -65,6 +66,15 @@ def test_parser_reads_batch_argument() -> None:
     assert args.batch is True
 
 
+def test_parser_reads_batch_input_directory_argument() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(["--batch", "--input", "input/prepared"])
+
+    assert args.batch is True
+    assert args.input.parts[-2:] == ("input", "prepared")
+
+
 def test_parser_reads_extraction_arguments() -> None:
     parser = build_parser()
 
@@ -92,6 +102,27 @@ def test_parser_reads_extraction_arguments() -> None:
     assert args.crop_padding == 3
 
 
+def test_parser_reads_crop_arguments() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "--crop",
+            "--input",
+            "input/raw",
+            "--threshold",
+            "150",
+            "--crop-padding",
+            "4",
+        ]
+    )
+
+    assert args.crop is True
+    assert args.input.parts[-2:] == ("input", "raw")
+    assert args.threshold == 150
+    assert args.crop_padding == 4
+
+
 def test_run_requires_input_argument() -> None:
     with pytest.raises(SystemExit) as exc_info:
         run(["--char", "A"])
@@ -106,7 +137,7 @@ def test_run_requires_char_argument() -> None:
     assert exc_info.value.code == 2
 
 
-def test_run_rejects_input_in_batch_mode() -> None:
+def test_run_rejects_file_input_in_batch_mode() -> None:
     with pytest.raises(SystemExit) as exc_info:
         run(["--batch", "--input", "input/raw/A.jpg"])
 
@@ -123,6 +154,20 @@ def test_run_rejects_char_in_batch_mode() -> None:
 def test_run_rejects_batch_in_extraction_mode() -> None:
     with pytest.raises(SystemExit) as exc_info:
         run(["--extract", "--batch"])
+
+    assert exc_info.value.code == 2
+
+
+def test_run_rejects_crop_with_other_modes() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        run(["--crop", "--extract", "--input", "input/raw/A.jpg"])
+
+    assert exc_info.value.code == 2
+
+
+def test_run_rejects_char_in_crop_mode() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        run(["--crop", "--input", "input/raw/A.jpg", "--char", "A"])
 
     assert exc_info.value.code == 2
 
@@ -256,6 +301,98 @@ def test_run_batch_reports_item_errors(
     assert "Batch successful files: 1" in captured.out
     assert "Batch failed files: 1" in captured.out
     assert "Batch item ERROR: char=Z" in captured.out
+
+
+def test_run_batch_accepts_explicit_input_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = AppConfig.from_project_root(tmp_path)
+    prepared_dir = config.prepared_dir
+    prepared_dir.mkdir(parents=True, exist_ok=True)
+
+    captured_input_dir: Path | None = None
+
+    def fake_run_batch_import_pipeline(
+        *,
+        config: AppConfig,
+        options: object,
+        input_dir: Path | None = None,
+    ) -> BatchImportSummary:
+        nonlocal captured_input_dir
+        captured_input_dir = input_dir
+        return BatchImportSummary(
+            input_dir=prepared_dir,
+            processed_count=0,
+            success_count=0,
+            failure_count=0,
+            items=(),
+        )
+
+    monkeypatch.setattr("src.main.get_default_config", lambda: config)
+    monkeypatch.setattr("src.main.run_batch_import_pipeline", fake_run_batch_import_pipeline)
+
+    exit_code = run(["--batch", "--input", str(prepared_dir)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured_input_dir == prepared_dir
+    assert f"Batch input dir: {prepared_dir}" in captured.out
+    assert "Batch processed files: 0" in captured.out
+
+
+def test_run_crop_prints_status_and_writes_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = AppConfig.from_project_root(tmp_path)
+    source_path = tmp_path / "input" / "raw" / "scheme.png"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    _create_scheme_with_caption(source_path)
+
+    monkeypatch.setattr("src.main.get_default_config", lambda: config)
+
+    exit_code = run(["--crop", "--input", str(source_path), "--no-denoise"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Crop input image:" in captured.out
+    assert "Crop bounds:" in captured.out
+    assert "Cropped image size:" in captured.out
+    assert "Cropped image:" in captured.out
+    assert "Crop overlay debug image:" in captured.out
+    assert "Crop completed." in captured.out
+    assert (config.prepared_dir / "scheme.png").exists()
+    assert (config.input_debug_dir / "scheme_crop_overlay.png").exists()
+
+
+def test_run_batch_crop_prints_summary_and_writes_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = AppConfig.from_project_root(tmp_path)
+    input_dir = tmp_path / "input" / "raw"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    _create_scheme_with_caption(input_dir / "one.png")
+    _create_scheme_with_caption(input_dir / "two.png")
+
+    monkeypatch.setattr("src.main.get_default_config", lambda: config)
+
+    exit_code = run(["--crop", "--input", str(input_dir), "--no-denoise"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert f"Batch crop input dir: {input_dir.resolve()}" in captured.out
+    assert "Batch crop processed files: 2" in captured.out
+    assert "Batch crop successful files: 2" in captured.out
+    assert "Batch crop failed files: 0" in captured.out
+    assert "Batch crop item OK:" in captured.out
+    assert "Batch crop completed." in captured.out
+    assert (config.prepared_dir / "one.png").exists()
+    assert (config.prepared_dir / "two.png").exists()
 
 
 def test_run_extraction_prints_status_and_writes_artifacts(
@@ -417,3 +554,18 @@ def _create_two_symbol_image(path: Path) -> None:
     draw.rectangle((34, 3, 52, 19), outline=0, width=2)
     draw.line((43, 3, 43, 19), fill=0, width=2)
     image.save(path, format="PNG")
+
+
+def _create_scheme_with_caption(path: Path) -> None:
+    image = Image.new("RGB", (130, 110), "white")
+    draw = ImageDraw.Draw(image)
+    left, top, right, bottom = 20, 16, 100, 76
+    step = 10
+    for x in range(left, right + 1, step):
+        draw.line((x, top, x, bottom), fill="black", width=1)
+    for y in range(top, bottom + 1, step):
+        draw.line((left, y, right, y), fill="black", width=1)
+    draw.rectangle((42, 28, 58, 44), fill="black")
+    draw.rectangle((72, 48, 88, 64), fill="black")
+    draw.text((24, 92), "Created by Stitchboard", fill="black")
+    image.save(path)

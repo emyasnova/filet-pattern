@@ -8,7 +8,9 @@ export function normalizePatternTransparency(cells: PatternCell[][]): PatternCel
     return cells.map((row) => [...row]);
   }
 
-  const nextCells = cells.map((row) => [...row]);
+  const nextCells: PatternCell[][] = cells.map((row) =>
+    row.map((cell): PatternCell => cell ?? 0),
+  );
   const visited = Array.from({ length: height }, () =>
     Array.from({ length: width }, () => false),
   );
