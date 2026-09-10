@@ -18,6 +18,8 @@ interface UsePatternsState {
 }
 
 export function usePatterns(filters: PatternFilters, revision = 0): UsePatternsState {
+  const category = filters.category;
+  const tags = filters.tags;
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search ?? '');
   const [state, setState] = useState<UsePatternsState>({
     patterns: [],
@@ -54,7 +56,7 @@ export function usePatterns(filters: PatternFilters, revision = 0): UsePatternsS
   useEffect(() => {
     const controller = new AbortController();
     setState((current) => ({ ...current, isLoading: true }));
-    loadPatterns({ ...filters, search: debouncedSearch }, controller.signal)
+    loadPatterns({ category, tags, search: debouncedSearch }, controller.signal)
       .then((result) => {
         setState((current) => ({
           ...current,
@@ -74,7 +76,7 @@ export function usePatterns(filters: PatternFilters, revision = 0): UsePatternsS
       });
 
     return () => controller.abort();
-  }, [debouncedSearch, filters.category, filters.tags, revision]);
+  }, [category, debouncedSearch, revision, tags]);
 
   return state;
 }

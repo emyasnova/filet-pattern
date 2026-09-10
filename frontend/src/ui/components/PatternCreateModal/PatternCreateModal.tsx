@@ -5,6 +5,7 @@ import { getPatternNameFromFile } from '../../../application/patternCreation';
 import type { Pattern, PatternCategory, PatternTag } from '../../../domain/pattern';
 import {
   createPattern,
+  ApiRequestError,
   detectImageSize,
   generatePatternPreview,
 } from '../../../infrastructure/patternRepository';
@@ -16,11 +17,12 @@ interface PatternCreateModalProps {
   availableTags: PatternTag[];
   onClose: () => void;
   onCreated: (pattern: Pattern) => void;
+  onUnavailable: () => void;
 }
 
 type Step = 'recognition' | 'metadata';
 
-export function PatternCreateModal({ categories, availableTags, onClose, onCreated }: PatternCreateModalProps) {
+export function PatternCreateModal({ categories, availableTags, onClose, onCreated, onUnavailable }: PatternCreateModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState<Step>('recognition');
   const [file, setFile] = useState<File | null>(null);
@@ -94,6 +96,10 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
       setFillThreshold(String(result.fillThreshold));
       setIsEdited(false);
     } catch (requestError) {
+      if (requestError instanceof ApiRequestError && requestError.status === 403) {
+        onUnavailable();
+        return;
+      }
       setError(requestError instanceof Error ? requestError.message : String(requestError));
     } finally {
       setStatus('');
@@ -125,6 +131,10 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
       const pattern = await createPattern({ name, category, tags, width: preview.width, height: preview.height, cells });
       onCreated(pattern);
     } catch (saveError) {
+      if (saveError instanceof ApiRequestError && saveError.status === 403) {
+        onUnavailable();
+        return;
+      }
       setError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
       setIsSaving(false);
@@ -141,8 +151,41 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
             <div className="pattern-parameters">
               <label>Ширина сетки<input type="number" min="1" max="500" value={gridWidth} onChange={(event) => setGridWidth(event.target.value)} /></label>
               <label>Высота сетки<input type="number" min="1" max="500" value={gridHeight} onChange={(event) => setGridHeight(event.target.value)} /></label>
-              <label>Threshold<input type="number" min="0" max="255" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></label>
-              <label>Fill threshold<input type="number" min="0" max="1" step="0.01" value={fillThreshold} onChange={(event) => setFillThreshold(event.target.value)} /></label>
+              <div className="pattern-parameter-slider">
+                <div className="pattern-parameter-heading">
+                  <label htmlFor="pattern-threshold">Чувствительность к тёмным участкам</label>
+                  <output htmlFor="pattern-threshold">{threshold}</output>
+                </div>
+                <input
+                  id="pattern-threshold"
+                  type="range"
+                  min="0"
+                  max="255"
+                  step="1"
+                  value={threshold}
+                  aria-describedby="pattern-threshold-help"
+                  onChange={(event) => setThreshold(event.target.value)}
+                />
+                <p id="pattern-threshold-help">Чем выше значение, тем более светлые участки считаются тёмными.</p>
+              </div>
+              <div className="pattern-parameter-slider">
+                <div className="pattern-parameter-heading">
+                  <label htmlFor="pattern-fill-threshold">Минимальное заполнение клетки</label>
+                  <output htmlFor="pattern-fill-threshold">{Math.round(Number(fillThreshold) * 100)}%</output>
+                </div>
+                <input
+                  id="pattern-fill-threshold"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Math.round(Number(fillThreshold) * 100)}
+                  aria-valuetext={`${Math.round(Number(fillThreshold) * 100)}%`}
+                  aria-describedby="pattern-fill-threshold-help"
+                  onChange={(event) => setFillThreshold(String(Number(event.target.value) / 100))}
+                />
+                <p id="pattern-fill-threshold-help">Какая доля клетки должна быть тёмной, чтобы считать её заполненной. Чем выше значение, тем меньше клеток заполняется.</p>
+              </div>
             </div>
             <button type="button" disabled={!file || Boolean(status) || !parametersValid} onClick={recognize}>{preview ? 'Переформировать' : 'Распознать'}</button>
             {status ? <p role="status">{status}</p> : null}

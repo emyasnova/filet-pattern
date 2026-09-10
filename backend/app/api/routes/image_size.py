@@ -1,8 +1,9 @@
 """Endpoints for detecting filet chart dimensions."""
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.api.schemas.image_size import ImageSizeResponse
+from app.api.dependencies import require_pattern_creation
 from app.domain.services.image_size_service import (
     ImageSizeDetectionError,
     get_image_grid_size,
@@ -12,7 +13,7 @@ from app.core.uploads import UploadTooLargeError, read_limited_upload
 router = APIRouter(prefix="/api/v1/images", tags=["images"])
 
 
-@router.post("/size", response_model=ImageSizeResponse)
+@router.post("/size", response_model=ImageSizeResponse, dependencies=[Depends(require_pattern_creation)])
 async def detect_image_size(file: UploadFile = File(...)) -> ImageSizeResponse:
     """Return the uploaded filet chart's dimensions in grid cells."""
     try:

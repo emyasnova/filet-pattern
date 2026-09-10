@@ -11,6 +11,7 @@ import {
   CANVAS_CELL_SIZE,
   getCanvasCellAtPoint,
   getVisibleCellBounds,
+  getZoomScrollOffset,
   type CanvasViewport,
 } from './canvasGeometry';
 import './CanvasGrid.css';
@@ -54,6 +55,15 @@ export function CanvasGrid({
   const [draftSelection, setDraftSelection] = useState<SelectionRect | null>(null);
   const [drawingVersion, setDrawingVersion] = useState(0);
 
+  const [zoom, setZoom] = useState(100);
+  const pendingZoomRef = useRef<{
+    viewport: CanvasViewport;
+    anchor: { x: number; y: number };
+    previousCellSize: number;
+  } | null>(null);
+  const cellSize = CANVAS_CELL_SIZE * zoom / 100;
+  const zoomDisabled = Boolean(drawingRef.current || selectionStart || draggedPattern);
+
   const activeSelection = useMemo(
     () => (draftSelection ?? selection ? normalizeSelectionRect((draftSelection ?? selection)!) : null),
     [draftSelection, selection],
@@ -69,6 +79,57 @@ export function CanvasGrid({
       height: frame.clientHeight,
     });
   }, []);
+
+  const changeZoom = useCallback((nextZoom: number, anchor?: { x: number; y: number }) => {
+    const frame = frameRef.current;
+    if (!frame || drawingRef.current || selectionStart || draggedPattern) return;
+    const next = Math.max(25, Math.min(300, nextZoom));
+    if (next === zoom) return;
+    pendingZoomRef.current = {
+      viewport: {
+        scrollLeft: frame.scrollLeft,
+        scrollTop: frame.scrollTop,
+        width: frame.clientWidth,
+        height: frame.clientHeight,
+      },
+      anchor: anchor ?? { x: frame.clientWidth / 2, y: frame.clientHeight / 2 },
+      previousCellSize: cellSize,
+    };
+    setZoom(next);
+  }, [cellSize, draggedPattern, selectionStart, zoom]);
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    const pending = pendingZoomRef.current;
+    if (!frame) return;
+    if (pending) {
+      const offset = getZoomScrollOffset(
+        { ...pending.viewport, width: frame.clientWidth, height: frame.clientHeight },
+        pending.anchor, pending.previousCellSize, cellSize, canvas.width, canvas.height,
+      );
+      frame.scrollLeft = offset.scrollLeft;
+      frame.scrollTop = offset.scrollTop;
+      pendingZoomRef.current = null;
+    }
+    measureViewport();
+  }, [canvas.width, canvas.height, cellSize, measureViewport]);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      if (event.deltaY === 0) return;
+      const rect = frame.getBoundingClientRect();
+      changeZoom(zoom + (event.deltaY < 0 ? 25 : -25), {
+        x: event.clientX - rect.left - frame.clientLeft,
+        y: event.clientY - rect.top - frame.clientTop,
+      });
+    };
+    frame.addEventListener('wheel', handleWheel, { passive: false });
+    return () => frame.removeEventListener('wheel', handleWheel);
+  }, [changeZoom, zoom]);
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -87,8 +148,8 @@ export function CanvasGrid({
     const element = canvasRef.current;
     if (!element) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    const cssWidth = Math.max(1, Math.min(viewport.width, canvas.width * CANVAS_CELL_SIZE));
-    const cssHeight = Math.max(1, Math.min(viewport.height, canvas.height * CANVAS_CELL_SIZE));
+    const cssWidth = Math.max(1, Math.min(viewport.width, canvas.width * cellSize));
+    const cssHeight = Math.max(1, Math.min(viewport.height, canvas.height * cellSize));
     element.style.width = `${cssWidth}px`;
     element.style.height = `${cssHeight}px`;
     element.width = Math.ceil(cssWidth * ratio);
@@ -96,8 +157,8 @@ export function CanvasGrid({
     const context = element.getContext('2d');
     if (!context) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    drawCanvas(context, canvas, viewport, activeSelection, previewPosition, draggedPattern, drawingRef.current);
-  }, [activeSelection, canvas, draggedPattern, drawingVersion, previewPosition, viewport]);
+    drawCanvas(context, canvas, viewport, activeSelection, previewPosition, draggedPattern, drawingRef.current, cellSize);
+  }, [activeSelection, canvas, draggedPattern, drawingVersion, previewPosition, viewport, cellSize]);
 
   const pointFromEvent = (clientX: number, clientY: number) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -108,6 +169,7 @@ export function CanvasGrid({
       viewport,
       canvas.width,
       canvas.height,
+      cellSize,
     );
   };
 
@@ -198,27 +260,36 @@ export function CanvasGrid({
   };
 
   return (
-    <div className="canvas-grid-frame" ref={frameRef} onScroll={measureViewport}>
-      <div
-        className="canvas-grid-surface"
-        style={{ width: canvas.width * CANVAS_CELL_SIZE, height: canvas.height * CANVAS_CELL_SIZE }}
-      >
-        <canvas
-          ref={canvasRef}
-          className={isSelectionMode ? 'canvas-grid selection-mode' : 'canvas-grid'}
-          role="grid"
-          aria-label={`Рабочая область ${canvas.width} x ${canvas.height}`}
-          onContextMenu={handleContextMenu}
-          onDragOver={handleDragOver}
-          onDragLeave={() => schedulePreview(null)}
-          onDrop={handleDrop}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerCancel={handlePointerUp}
-          onPointerUp={handlePointerUp}
-        />
+    <>
+      <div className="canvas-zoom-controls" role="group" aria-label="Масштаб рабочей области">
+        <button type="button" aria-label="Уменьшить масштаб" disabled={zoomDisabled || zoom === 25} onClick={() => changeZoom(zoom - 25)}>−</button>
+        <output aria-live="polite" aria-label="Текущий масштаб">{zoom}%</output>
+        <button type="button" aria-label="Увеличить масштаб" disabled={zoomDisabled || zoom === 300} onClick={() => changeZoom(zoom + 25)}>+</button>
+        <button type="button" disabled={zoomDisabled || zoom === 100} onClick={() => changeZoom(100)}>Сбросить на 100%</button>
+        <span>Ctrl/Cmd + колесо — масштаб</span>
       </div>
-    </div>
+      <div className="canvas-grid-frame" ref={frameRef} onScroll={measureViewport}>
+        <div
+          className="canvas-grid-surface"
+          style={{ width: canvas.width * cellSize, height: canvas.height * cellSize }}
+        >
+          <canvas
+            ref={canvasRef}
+            className={isSelectionMode ? 'canvas-grid selection-mode' : 'canvas-grid'}
+            role="grid"
+            aria-label={`Рабочая область ${canvas.width} x ${canvas.height}`}
+            onContextMenu={handleContextMenu}
+            onDragOver={handleDragOver}
+            onDragLeave={() => schedulePreview(null)}
+            onDrop={handleDrop}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerCancel={handlePointerUp}
+            onPointerUp={handlePointerUp}
+          />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -230,43 +301,44 @@ function drawCanvas(
   preview: CellPosition | null,
   pattern: Pattern | null,
   drawing: DrawingState | null,
+  cellSize: number,
 ) {
   context.clearRect(0, 0, viewport.width, viewport.height);
   context.fillStyle = '#ffffff';
   context.fillRect(0, 0, viewport.width, viewport.height);
-  const bounds = getVisibleCellBounds(viewport, canvas.width, canvas.height);
+  const bounds = getVisibleCellBounds(viewport, canvas.width, canvas.height, cellSize);
   const draft = drawing?.updates;
 
   for (let row = bounds.top; row <= bounds.bottom; row += 1) {
     for (let col = bounds.left; col <= bounds.right; col += 1) {
-      const x = col * CANVAS_CELL_SIZE - viewport.scrollLeft;
-      const y = row * CANVAS_CELL_SIZE - viewport.scrollTop;
+      const x = col * cellSize - viewport.scrollLeft;
+      const y = row * cellSize - viewport.scrollTop;
       const value = draft?.get(`${row}:${col}`)?.value ?? canvas.cells[row][col];
       context.fillStyle = value === 1 ? '#111111' : '#ffffff';
-      context.fillRect(x, y, CANVAS_CELL_SIZE, CANVAS_CELL_SIZE);
+      context.fillRect(x, y, cellSize, cellSize);
       context.strokeStyle = '#d6dbe3';
       context.lineWidth = 1;
-      context.strokeRect(x + 0.5, y + 0.5, CANVAS_CELL_SIZE, CANVAS_CELL_SIZE);
+      context.strokeRect(x + 0.5, y + 0.5, cellSize, cellSize);
       if ((col + 1) % 10 === 0) {
         context.strokeStyle = '#727986';
         context.lineWidth = 2;
         context.beginPath();
-        context.moveTo(x + CANVAS_CELL_SIZE, y);
-        context.lineTo(x + CANVAS_CELL_SIZE, y + CANVAS_CELL_SIZE);
+        context.moveTo(x + cellSize, y);
+        context.lineTo(x + cellSize, y + cellSize);
         context.stroke();
       }
       if ((row + 1) % 10 === 0) {
         context.strokeStyle = '#727986';
         context.lineWidth = 2;
         context.beginPath();
-        context.moveTo(x, y + CANVAS_CELL_SIZE);
-        context.lineTo(x + CANVAS_CELL_SIZE, y + CANVAS_CELL_SIZE);
+        context.moveTo(x, y + cellSize);
+        context.lineTo(x + cellSize, y + cellSize);
         context.stroke();
       }
       if (selection && row >= selection.top && row <= selection.bottom && col >= selection.left && col <= selection.right) {
         context.strokeStyle = '#2f6fed';
         context.lineWidth = 2;
-        context.strokeRect(x + 1, y + 1, CANVAS_CELL_SIZE - 2, CANVAS_CELL_SIZE - 2);
+        context.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
       }
     }
   }
@@ -280,13 +352,13 @@ function drawCanvas(
       if (patternCol < 0 || patternCol >= pattern.width) continue;
       const value = pattern.cells[patternRow][patternCol];
       if (value === null) continue;
-      const x = col * CANVAS_CELL_SIZE - viewport.scrollLeft;
-      const y = row * CANVAS_CELL_SIZE - viewport.scrollTop;
+      const x = col * cellSize - viewport.scrollLeft;
+      const y = row * cellSize - viewport.scrollTop;
       context.fillStyle = value === 1 ? 'rgba(17,17,17,.45)' : 'rgba(255,255,255,.65)';
-      context.fillRect(x, y, CANVAS_CELL_SIZE, CANVAS_CELL_SIZE);
+      context.fillRect(x, y, cellSize, cellSize);
       context.strokeStyle = 'rgba(47,111,237,.8)';
       context.lineWidth = 2;
-      context.strokeRect(x + 1, y + 1, CANVAS_CELL_SIZE - 2, CANVAS_CELL_SIZE - 2);
+      context.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
     }
   }
 }

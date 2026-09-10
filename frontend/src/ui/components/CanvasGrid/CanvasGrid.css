@@ -24,3 +24,26 @@
 
 .canvas-grid.selection-mode { cursor: crosshair; }
 .canvas-grid:focus-visible { outline: 2px solid #2f6fed; outline-offset: -2px; }
+
+.canvas-zoom-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.canvas-zoom-controls button {
+  padding: 6px 10px;
+  border: 1px solid #c8ced8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+}
+
+.canvas-zoom-controls button:disabled { opacity: 0.5; cursor: default; }
+.canvas-zoom-controls button:focus-visible { outline: 2px solid #2f6fed; outline-offset: 2px; }
+.canvas-zoom-controls button:hover:not(:disabled) { background: #f4f5f7; }
+.canvas-zoom-controls output { min-width: 5ch; text-align: center; font-variant-numeric: tabular-nums; }
+.canvas-zoom-controls span { color: #646b76; font-size: 13px; }

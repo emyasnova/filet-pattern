@@ -34,6 +34,26 @@ export interface LoadPatternsResult {
   errors: PatternLoadError[];
 }
 
+export interface PublicConfig {
+  patternCreationEnabled: boolean;
+}
+
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function loadPublicConfig(signal?: AbortSignal): Promise<PublicConfig> {
+  const response = await fetch('/api/v1/config', { signal });
+  if (!response.ok) throw new ApiRequestError(response.status, `HTTP ${response.status}`);
+  const data = (await response.json()) as Partial<PublicConfig>;
+  return { patternCreationEnabled: data.patternCreationEnabled === true };
+}
+
 export async function loadPatterns(
   filters: PatternFilters,
   signal?: AbortSignal,
@@ -128,7 +148,7 @@ async function requestJson<T>(url: string, init: RequestInit): Promise<T> {
     } catch {
       // Keep the HTTP status when the server did not return JSON.
     }
-    throw new Error(message);
+    throw new ApiRequestError(response.status, message);
   }
   return (await response.json()) as T;
 }

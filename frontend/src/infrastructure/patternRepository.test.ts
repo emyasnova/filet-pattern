@@ -6,7 +6,9 @@ import {
   generatePatternPreview,
   loadCategories,
   loadPatterns,
+  loadPublicConfig,
   loadTags,
+  ApiRequestError,
 } from './patternRepository';
 
 const pattern = {
@@ -72,6 +74,27 @@ describe('patternRepository', () => {
       { slug: 'alphabet', name: 'Алфавит' },
     ]);
     await expect(loadTags()).resolves.toEqual([{ id: 'tag-id', name: 'letter' }]);
+  });
+
+  it('loads the public pattern creation feature flag', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ patternCreationEnabled: true }),
+    }));
+
+    await expect(loadPublicConfig()).resolves.toEqual({ patternCreationEnabled: true });
+  });
+
+  it('preserves a forbidden status for creation UI handling', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ detail: 'Pattern creation is currently unavailable' }),
+    }));
+
+    await expect(detectImageSize(new File(['x'], 'x.png'))).rejects.toEqual(
+      new ApiRequestError(403, 'Pattern creation is currently unavailable'),
+    );
   });
 
   it('returns an error for an unsuccessful response', async () => {

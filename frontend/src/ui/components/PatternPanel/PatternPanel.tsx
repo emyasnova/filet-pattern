@@ -1,6 +1,7 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
 import type { Pattern } from '../../../domain/pattern';
+import { loadPublicConfig } from '../../../infrastructure/patternRepository';
 import { usePatterns } from '../../hooks/usePatterns';
 import { PatternCard } from '../PatternCard/PatternCard';
 import { PatternCreateModal } from '../PatternCreateModal/PatternCreateModal';
@@ -22,6 +23,15 @@ export const PatternPanel = memo(function PatternPanel({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [notice, setNotice] = useState('');
+  const [creationEnabled, setCreationEnabled] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadPublicConfig(controller.signal)
+      .then((config) => setCreationEnabled(config.patternCreationEnabled))
+      .catch(() => setCreationEnabled(false));
+    return () => controller.abort();
+  }, []);
   const filters = useMemo(
     () => ({ search: query, category: category || undefined, tags: selectedTags }),
     [category, query, selectedTags],
@@ -59,7 +69,7 @@ export const PatternPanel = memo(function PatternPanel({
           <h2 id="patterns-title">Мотивы</h2>
           <p>Загружаются из каталога на сервере.</p>
         </div>
-        <button
+        {creationEnabled ? <button
           type="button"
           className="pattern-create-button"
           aria-label="Добавить паттерн"
@@ -67,7 +77,7 @@ export const PatternPanel = memo(function PatternPanel({
           onClick={() => setIsCreateOpen(true)}
         >
           +
-        </button>
+        </button> : null}
       </div>
 
       {notice ? <div className="pattern-create-notice" role="status">{notice}</div> : null}
@@ -183,6 +193,11 @@ export const PatternPanel = memo(function PatternPanel({
           categories={categories}
           availableTags={availableTags}
           onClose={() => setIsCreateOpen(false)}
+          onUnavailable={() => {
+            setIsCreateOpen(false);
+            setCreationEnabled(false);
+            setNotice('Добавление паттернов сейчас недоступно.');
+          }}
           onCreated={(pattern) => {
             setIsCreateOpen(false);
             setNotice(`Паттерн «${pattern.name}» сохранён`);

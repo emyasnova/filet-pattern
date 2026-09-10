@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: filet_pattern
+      POSTGRES_USER: filet
+      POSTGRES_PASSWORD: local-production-only
+    volumes:
+      - production_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U filet -d filet_pattern"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://filet:local-production-only@postgres:5432/filet_pattern
+      PUBLIC_ORIGIN: http://localhost:8000
+      CANONICAL_HOST: localhost
+      PATTERN_CREATION_ENABLED: ${PATTERN_CREATION_ENABLED:-false}
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  production_postgres_data:

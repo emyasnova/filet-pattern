@@ -11,6 +11,7 @@ from app.api.schemas.patterns import (
     PatternResponse,
     TagResponse,
 )
+from app.api.dependencies import require_pattern_creation
 from app.infrastructure.database.session import get_database_session
 from app.main import app
 
@@ -103,6 +104,7 @@ def test_preview_route_forwards_file_and_parameters(monkeypatch) -> None:
         "app.api.routes.patterns.generate_pattern_preview",
         fake_generate_pattern_preview,
     )
+    app.dependency_overrides[require_pattern_creation] = lambda: None
 
     response = TestClient(app).post(
         "/api/v1/patterns/preview",
@@ -147,6 +149,7 @@ def test_create_route_forwards_validated_pattern(monkeypatch) -> None:
         )
 
     monkeypatch.setattr("app.api.routes.patterns.create_pattern", fake_create_pattern)
+    app.dependency_overrides[require_pattern_creation] = lambda: None
     app.dependency_overrides[get_database_session] = _session_override
     try:
         response = TestClient(app).post(

@@ -6,11 +6,19 @@
 .pattern-create-modal h2,.pattern-create-modal p { margin: 0; }
 .pattern-create-content { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 12px; overflow: auto; padding: 20px; }
 .pattern-create-file,.pattern-metadata label,.pattern-parameters label { display: flex; flex-direction: column; gap: 5px; }
-.pattern-parameters { display: grid; grid-template-columns: repeat(4,minmax(120px,1fr)); gap: 10px; }
+.pattern-parameters { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.pattern-parameters > label { min-width: 0; }
+.pattern-parameters > label input { min-width: 0; }
+.pattern-parameter-slider { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+.pattern-parameter-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pattern-parameter-heading output { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.pattern-parameter-slider p { color: #646b76; font-size: 13px; line-height: 1.4; }
+.pattern-create-modal .pattern-parameter-slider input[type="range"] { box-sizing: border-box; width: 100%; min-height: 28px; margin: 0; padding: 0; border: 0; accent-color: #2f6fed; cursor: pointer; }
+.pattern-parameter-slider input:focus-visible { outline: 2px solid #2f6fed; outline-offset: 2px; }
 .pattern-create-modal input,.pattern-create-modal select { border: 1px solid #c8ced8; border-radius: 6px; padding: 8px; }
 .pattern-create-modal button { border: 1px solid #c8ced8; border-radius: 6px; padding: 8px 12px; background: #fff; cursor: pointer; }
 .pattern-create-modal button:disabled { cursor: not-allowed; opacity: .55; }
 .pattern-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pattern-result-heading label { display: flex; align-items: center; gap: 6px; }
 .pattern-create-error { margin: 0 20px 12px !important; color: #991b1b; }
-@media(max-width:700px){.pattern-parameters{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.pattern-parameter-slider{grid-column:1 / -1}}

@@ -12,6 +12,7 @@ from app.api.schemas.patterns import (
     PatternResponse,
     TagResponse,
 )
+from app.api.dependencies import require_pattern_creation
 from app.core.uploads import UploadTooLargeError, read_limited_upload
 from app.domain.services.pattern_service import (
     create_pattern,
@@ -51,7 +52,7 @@ def list_tags(session: DatabaseSession) -> list[TagResponse]:
     return get_tags(PatternRepository(session))
 
 
-@router.post("/patterns/preview", response_model=PatternPreviewResponse)
+@router.post("/patterns/preview", response_model=PatternPreviewResponse, dependencies=[Depends(require_pattern_creation)])
 async def preview_pattern(
     file: UploadFile = File(...),
     width: int = Form(..., ge=1, le=500),
@@ -82,6 +83,7 @@ async def preview_pattern(
     "/patterns",
     response_model=PatternResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_pattern_creation)],
 )
 def save_pattern(
     request: PatternCreateRequest,
