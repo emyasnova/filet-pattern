@@ -19,20 +19,57 @@ Production-архитектура:
 Frontend не запускается отдельным production-контейнером. Node используется
 только на стадии сборки, после чего FastAPI раздаёт содержимое `frontend/dist`.
 
+## Статус сверки с репозиторием — 10 сентября 2026
+
+Галочкой отмечена реализация, подтверждённая чтением кода, конфигурации или
+документации. Наличие тестов отмечено отдельно от успешного их прохождения.
+В рамках этой сверки тесты, lint, build, Docker smoke test и восстановление
+backup не запускались. Незакрытый пункт означает неполную реализацию либо
+отсутствие подтверждения требуемой проверки.
+
+Остаётся уточнить или завершить:
+
+- **Раздел 4 — тесты feature flag:** проверка запрета и отсутствия вызова
+  image-сервиса есть для `/images/size`, но нет аналогичных проверок запрета
+  `/patterns/preview` и `/patterns`. Тесты разрешённого импорта обходят
+  `require_pattern_creation` через dependency override, а не проверяют
+  обработку с реальным `PATTERN_CREATION_ENABLED=true`.
+- **Раздел 5 — обработка `403`:** preview и сохранение закрывают форму через
+  `onUnavailable`, но ошибка `detectImageSize` перехватывается внутренним
+  `catch`: форма остаётся открытой и предлагает ввести размеры вручную.
+- **Раздел 5 — тесты интерфейса:** тесты API-клиента для config и `403` есть,
+  тестов отображения/скрытия кнопки и формы по feature flag нет.
+- **Раздел 7 — runtime image:** slim Python, production-зависимости,
+  копирование приложения и запуск не от root реализованы. Однако
+  `.dockerignore` не исключает существующие `backend/tools/glyph_import/tmp_dbg`,
+  `tmp_ext` и `tmp_man`; они попадают под `COPY backend/ ./`.
+- **Раздел 8 и итоговые проверки:** Compose и smoke-скрипт есть, но успешное
+  прохождение полного сценария на чистой БД, сборки, полного набора тестов и
+  backup round trip этой сверкой не подтверждено. Smoke-скрипт проверяет запрет
+  только `/images/size`; остальные POST и разрешённый импорт требуют отдельной
+  проверки по runbook.
+- **Автоматические миграции и единый origin в Definition of Done:** отмечены
+  по `docker/start.sh`, seed-миграции и раздаче frontend в `app/main.py`;
+  это не подтверждение успешного запуска контейнера.
+- **Runbook:** документ и основные инструкции есть; итоговый пункт о готовности
+  deploy без доработок оставлен открытым до проверки всей последовательности.
+- **Телефонная авторизация:** перечисленные задачи следующего этапа пока
+  не реализованы.
+
 ## 1. Production-конфигурация backend
 
-- [ ] Добавить поддержку переменной `DATABASE_URL`.
-- [ ] Для PostgreSQL URL явно выбирать драйвер `postgresql+psycopg`.
-- [ ] Сохранить `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`,
+- [x] Добавить поддержку переменной `DATABASE_URL`.
+- [x] Для PostgreSQL URL явно выбирать драйвер `postgresql+psycopg`.
+- [x] Сохранить `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`,
   `POSTGRES_USER`, `POSTGRES_PASSWORD` как fallback для локальной разработки.
-- [ ] Не выводить пароли и DSN в логи.
-- [ ] Добавить настройки:
+- [x] Не выводить пароли и DSN в логи.
+- [x] Добавить настройки:
   - `FRONTEND_DIST_DIR`;
   - `PUBLIC_ORIGIN`;
   - `CANONICAL_HOST`;
   - `PATTERN_CREATION_ENABLED`, по умолчанию `false` в production.
-- [ ] Обновить `.env.example` безопасными placeholder-значениями.
-- [ ] Добавить unit-тесты приоритета `DATABASE_URL`, fallback-настроек и
+- [x] Обновить `.env.example` безопасными placeholder-значениями.
+- [x] Добавить unit-тесты приоритета `DATABASE_URL`, fallback-настроек и
   преобразования URL к драйверу psycopg.
 
 Критерий готовности: backend одинаково запускается с локальными `POSTGRES_*` и
@@ -40,46 +77,46 @@ Frontend не запускается отдельным production-контей�
 
 ## 2. Health и readiness
 
-- [ ] Оставить `GET /health` простым liveness endpoint без обращения к БД.
-- [ ] Добавить `GET /ready`, выполняющий `SELECT 1` через SQLAlchemy.
-- [ ] Возвращать `200`, когда БД доступна, и `503`, когда подключение невозможно.
-- [ ] Не раскрывать детали подключения в ответе `503`.
-- [ ] Добавить integration-тесты обоих состояний readiness.
+- [x] Оставить `GET /health` простым liveness endpoint без обращения к БД.
+- [x] Добавить `GET /ready`, выполняющий `SELECT 1` через SQLAlchemy.
+- [x] Возвращать `200`, когда БД доступна, и `503`, когда подключение невозможно.
+- [x] Не раскрывать детали подключения в ответе `503`.
+- [x] Добавить integration-тесты обоих состояний readiness.
 
 Критерий готовности: контейнер можно проверять через `/ready` перед подключением
 production-трафика.
 
 ## 3. Раздача frontend через FastAPI
 
-- [ ] После регистрации API и служебных маршрутов подключить собранный frontend.
-- [ ] Раздавать `/assets/*` из `frontend/dist/assets`.
-- [ ] Возвращать `index.html` для `/` и неизвестных клиентских маршрутов SPA.
-- [ ] Не перехватывать `/api/*`, `/health`, `/ready`, `/docs`, `/openapi.json`.
-- [ ] Если `FRONTEND_DIST_DIR` отсутствует в локальном dev-режиме, backend не
+- [x] После регистрации API и служебных маршрутов подключить собранный frontend.
+- [x] Раздавать `/assets/*` из `frontend/dist/assets`.
+- [x] Возвращать `index.html` для `/` и неизвестных клиентских маршрутов SPA.
+- [x] Не перехватывать `/api/*`, `/health`, `/ready`, `/docs`, `/openapi.json`.
+- [x] Если `FRONTEND_DIST_DIR` отсутствует в локальном dev-режиме, backend не
   должен падать при импорте приложения.
-- [ ] Добавить тесты для `/`, assets, SPA fallback и отсутствующего dist.
+- [x] Добавить тесты для `/`, assets, SPA fallback и отсутствующего dist.
 
 Критерий готовности: после сборки один процесс Uvicorn обслуживает интерфейс и
 API с одного origin.
 
 ## 4. Отключение создания паттернов до телефонной авторизации
 
-- [ ] Публично оставить:
+- [x] Публично оставить:
   - frontend редактора;
   - `GET /api/v1/patterns`;
   - `GET /api/v1/categories`;
   - `GET /api/v1/tags`;
   - клиентский экспорт PNG/JSON.
-- [ ] Добавить серверный feature flag `PATTERN_CREATION_ENABLED`.
-- [ ] При выключенном flag запретить:
+- [x] Добавить серверный feature flag `PATTERN_CREATION_ENABLED`.
+- [x] При выключенном flag запретить:
   - `POST /api/v1/images/size`;
   - `POST /api/v1/patterns/preview`;
   - `POST /api/v1/patterns`.
-- [ ] Возвращать стабильный `403` без выполнения чтения файла и image processing.
-- [ ] Не добавлять временные password login, admin-cookie или auth endpoints.
-- [ ] Разрешать локальную разработку и наполнение каталога только при явном
+- [x] Возвращать стабильный `403` без выполнения чтения файла и image processing.
+- [x] Не добавлять временные password login, admin-cookie или auth endpoints.
+- [x] Разрешать локальную разработку и наполнение каталога только при явном
   `PATTERN_CREATION_ENABLED=true`.
-- [ ] Ограничить частоту публичных запросов чтения; сохранить лимит загрузки
+- [x] Ограничить частоту публичных запросов чтения; сохранить лимит загрузки
   10 MiB для будущего защищённого импорта.
 - [ ] Покрыть тестами оба значения flag, публичные GET, закрытые production POST
   и отсутствие запуска доменных image-сервисов при запрете.
@@ -89,13 +126,13 @@ API с одного origin.
 
 ## 5. Интерфейс до телефонной авторизации
 
-- [ ] Добавить публичный `GET /api/v1/config`, возвращающий
+- [x] Добавить публичный `GET /api/v1/config`, возвращающий
   `{ "patternCreationEnabled": boolean }`, и получать flag через него.
-- [ ] Скрывать кнопку добавления паттерна и форму импорта при выключенном flag.
-- [ ] Не добавлять временную форму входа.
+- [x] Скрывать кнопку добавления паттерна и форму импорта при выключенном flag.
+- [x] Не добавлять временную форму входа.
 - [ ] При `403` закрывать форму создания и показывать нейтральное сообщение о
   недоступности функции.
-- [ ] Не менять публичное поведение редактора, каталога и экспорта.
+- [x] Не менять публичное поведение редактора, каталога и экспорта.
 - [ ] Добавить тесты API-клиента и отображения feature flag.
 
 Критерий готовности: в production посетители не видят инструменты импорта, а
@@ -103,25 +140,25 @@ API с одного origin.
 
 ## 6. Security middleware
 
-- [ ] Ограничить допустимые Host заголовки через production-настройки.
-- [ ] Добавить перенаправление `www` на `CANONICAL_HOST` без жёстко заданного
+- [x] Ограничить допустимые Host заголовки через production-настройки.
+- [x] Добавить перенаправление `www` на `CANONICAL_HOST` без жёстко заданного
   имени будущего домена.
-- [ ] Добавить заголовки:
+- [x] Добавить заголовки:
   - `X-Content-Type-Options: nosniff`;
   - `Referrer-Policy`;
   - `X-Frame-Options` или эквивалентный CSP `frame-ancestors`;
   - минимальный CSP, совместимый с текущим Vite bundle.
-- [ ] Не включать CORS: production frontend и API работают на одном origin.
-- [ ] Сохранить текущий лимит загружаемого файла 10 MiB.
-- [ ] Добавить тесты canonical redirect, trusted host и security headers.
+- [x] Не включать CORS: production frontend и API работают на одном origin.
+- [x] Сохранить текущий лимит загружаемого файла 10 MiB.
+- [x] Добавить тесты canonical redirect, trusted host и security headers.
 
 Критерий готовности: production-настройки не зависят от конкретного домена и
 могут быть заполнены переменными окружения перед deploy.
 
 ## 7. Docker-образ приложения
 
-- [ ] Добавить корневой multi-stage `Dockerfile`.
-- [ ] Frontend stage:
+- [x] Добавить корневой multi-stage `Dockerfile`.
+- [x] Frontend stage:
   - использовать зафиксированную поддерживаемую Node-версию;
   - выполнять `npm ci`;
   - выполнять `npm run build`;
@@ -133,13 +170,13 @@ API с одного origin.
   - запускать процесс не от root;
   - не копировать `.env`, `.git`, `.venv`, `node_modules`, тестовые изображения и
     временные glyph-import артефакты.
-- [ ] Добавить `.dockerignore`.
-- [ ] Добавить production startup script:
+- [x] Добавить `.dockerignore`.
+- [x] Добавить production startup script:
   1. `python -m alembic upgrade head`;
   2. `python -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT"`;
   3. корректно передавать SIGTERM процессу Uvicorn.
-- [ ] Не помещать secrets в Docker build arguments, layers или image metadata.
-- [ ] Добавить `railway.toml` с Dockerfile build, одним instance, restart on
+- [x] Не помещать secrets в Docker build arguments, layers или image metadata.
+- [x] Добавить `railway.toml` с Dockerfile build, одним instance, restart on
   failure, регионом `europe-west4-drams3a` и healthcheck `/ready`.
 
 Критерий готовности: образ собирается из корня репозитория и запускается только
@@ -147,9 +184,9 @@ API с одного origin.
 
 ## 8. Локальная production-проверка
 
-- [ ] Расширить Compose отдельным production profile или добавить отдельный
+- [x] Расширить Compose отдельным production profile или добавить отдельный
   `compose.production-local.yaml` для приложения и локального PostgreSQL.
-- [ ] Не изменять удобный текущий dev-запуск frontend/backend.
+- [x] Не изменять удобный текущий dev-запуск frontend/backend.
 - [ ] Проверить на чистой БД:
   - применение Alembic migrations;
   - seed каталога;
@@ -161,7 +198,7 @@ API с одного origin.
     `PATTERN_CREATION_ENABLED=true`;
   - перезапуск контейнера без потери данных PostgreSQL.
 - [ ] Запустить backend tests, frontend tests, lint и production build.
-- [ ] Добавить smoke-команду или скрипт, завершающийся ненулевым кодом при
+- [x] Добавить smoke-команду или скрипт, завершающийся ненулевым кодом при
   неуспешной проверке.
 
 Критерий готовности: production-сценарий полностью воспроизводится локально
@@ -169,13 +206,13 @@ API с одного origin.
 
 ## 9. Ночной backup PostgreSQL
 
-- [ ] Добавить GitHub Actions workflow с `schedule` и `workflow_dispatch`.
-- [ ] Выполнять `pg_dump` в custom или plain SQL формате, затем gzip.
-- [ ] Шифровать backup через AES-256 до загрузки artifact.
-- [ ] Читать `DATABASE_URL` и `BACKUP_PASSWORD` только из GitHub Secrets.
-- [ ] Хранить только зашифрованный artifact, retention — 30 дней.
-- [ ] Не печатать DSN и пароль шифрования в workflow logs.
-- [ ] Добавить локально проверяемые инструкции:
+- [x] Добавить GitHub Actions workflow с `schedule` и `workflow_dispatch`.
+- [x] Выполнять `pg_dump` в custom или plain SQL формате, затем gzip.
+- [x] Шифровать backup через AES-256 до загрузки artifact.
+- [x] Читать `DATABASE_URL` и `BACKUP_PASSWORD` только из GitHub Secrets.
+- [x] Хранить только зашифрованный artifact, retention — 30 дней.
+- [x] Не печатать DSN и пароль шифрования в workflow logs.
+- [x] Добавить локально проверяемые инструкции:
   - скачать backup;
   - расшифровать;
   - восстановить в отдельную PostgreSQL database;
@@ -187,15 +224,15 @@ API с одного origin.
 
 ## 10. Документация и передача
 
-- [ ] Обновить корневой `README.md` разделом production architecture.
-- [ ] Добавить `docs/DEPLOYMENT_RUNBOOK.md` с двумя частями:
+- [x] Обновить корневой `README.md` разделом production architecture.
+- [x] Добавить `docs/DEPLOYMENT_RUNBOOK.md` с двумя частями:
   - локальная сборка и smoke test;
   - действия в Neon, Railway, GitHub Secrets и DNS после создания аккаунтов.
-- [ ] Добавить таблицу обязательных переменных без реальных значений secrets.
-- [ ] Описать rollback на предыдущий Railway deployment.
-- [ ] Описать восстановление Neon из зашифрованного backup.
-- [ ] Указать ожидаемые расходы и необходимость контролировать Railway Usage.
-- [ ] Зафиксировать, что горизонтальное масштабирование и несколько Uvicorn
+- [x] Добавить таблицу обязательных переменных без реальных значений secrets.
+- [x] Описать rollback на предыдущий Railway deployment.
+- [x] Описать восстановление Neon из зашифрованного backup.
+- [x] Указать ожидаемые расходы и необходимость контролировать Railway Usage.
+- [x] Зафиксировать, что горизонтальное масштабирование и несколько Uvicorn
   workers не входят в MVP.
 
 ## Следующий этап после первого deploy: авторизация по телефону
@@ -232,9 +269,9 @@ API с одного origin.
 - [ ] Все изменения реализованы в репозитории и не содержат secrets.
 - [ ] `docker build` завершается успешно.
 - [ ] Контейнер и PostgreSQL запускаются локально с production-конфигурацией.
-- [ ] Все migrations и seed применяются автоматически.
-- [ ] Frontend и API доступны с одного origin.
-- [ ] Production endpoints обработки изображений и изменения каталога закрыты
+- [x] Все migrations и seed применяются автоматически.
+- [x] Frontend и API доступны с одного origin.
+- [x] Production endpoints обработки изображений и изменения каталога закрыты
   feature flag до появления телефонной авторизации.
 - [ ] Все backend/frontend тесты и lint проходят без новых ошибок.
 - [ ] Smoke test проходит на чистой локальной БД.
