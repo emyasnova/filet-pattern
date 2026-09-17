@@ -4,7 +4,7 @@ import type { FormEvent } from 'react';
 import './SizeControls.css';
 
 export const MIN_CANVAS_SIZE = 1;
-export const MAX_CANVAS_SIZE = 300;
+export const MAX_CANVAS_SIZE = 1000;
 
 interface SizeControlsProps {
   width: number;

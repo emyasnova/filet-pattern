@@ -1,1 +1,36 @@
+# Local environment files (at any directory depth).
 .env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local credentials and secret configuration.
+.secrets/
+secrets/
+secrets.json
+secrets.yaml
+secrets.yml
+secrets.toml
+credentials.json
+credentials.yaml
+credentials.yml
+service-account*.json
+
+# Private keys and certificate bundles.
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ecdsa
+id_ed25519
+
+# Database backups and local restore output.
+backups/
+*.dump
+*.sql.gz
+*.sql.gz.enc
+backup.sql
+restore.sql

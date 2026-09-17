@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { normalizePatternTransparency } from '../../../application/normalizePatternTransparency';
-import { getPatternNameFromFile } from '../../../application/patternCreation';
+import { getPatternNameFromFile, invertPatternCells } from '../../../application/patternCreation';
 import type { Pattern, PatternCategory, PatternTag } from '../../../domain/pattern';
 import {
   createPattern,
@@ -30,7 +30,7 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
   const [gridHeight, setGridHeight] = useState('');
   const [threshold, setThreshold] = useState('128');
   const [fillThreshold, setFillThreshold] = useState('0.35');
-  const [previewZoom, setPreviewZoom] = useState(14);
+  const [previewZoom, setPreviewZoom] = useState(100);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof generatePatternPreview>> | null>(null);
   const [originalCells, setOriginalCells] = useState<Pattern['cells']>([]);
   const [isEdited, setIsEdited] = useState(false);
@@ -61,6 +61,8 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
     setGridWidth('');
     setGridHeight('');
     setError('');
+    setIsEdited(false);
+    setPreviewZoom(100);
   };
 
   const recognize = async () => {
@@ -79,6 +81,7 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
           setGridWidth(String(width));
           setGridHeight(String(height));
         } catch (sizeError) {
+          if (sizeError instanceof ApiRequestError && sizeError.status === 403) throw sizeError;
           setError(`${String(sizeError)}. Введите ширину и высоту вручную.`);
           return;
         }
@@ -146,7 +149,7 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
       <form method="dialog" className="pattern-create-modal" onSubmit={(event) => event.preventDefault()}>
         <header><div><h2>Добавить паттерн</h2><p>Шаг {step === 'recognition' ? '1 из 2: распознавание' : '2 из 2: описание'}</p></div><button type="button" aria-label="Закрыть" onClick={requestClose}>×</button></header>
         {step === 'recognition' ? (
-          <div className="pattern-create-content">
+          <div key="recognition" className="pattern-create-content">
             <label className="pattern-create-file">Изображение<input type="file" accept="image/png,image/jpeg" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} /></label>
             <div className="pattern-parameters">
               <label>Ширина сетки<input type="number" min="1" max="500" value={gridWidth} onChange={(event) => setGridWidth(event.target.value)} /></label>
@@ -189,10 +192,34 @@ export function PatternCreateModal({ categories, availableTags, onClose, onCreat
             </div>
             <button type="button" disabled={!file || Boolean(status) || !parametersValid} onClick={recognize}>{preview ? 'Переформировать' : 'Распознать'}</button>
             {status ? <p role="status">{status}</p> : null}
-            {preview ? <><div className="pattern-result-heading"><label>Масштаб<input type="range" min="8" max="24" value={previewZoom} onChange={(event) => setPreviewZoom(Number(event.target.value))} /></label><button type="button" disabled={!isEdited} onClick={() => { setPreview({ ...preview, cells: originalCells.map((row) => [...row]) }); setIsEdited(false); }}>Сбросить ручные изменения</button></div><PatternGridEditor cells={preview.cells} zoom={previewZoom} onChange={(cells) => { setPreview({ ...preview, cells }); setIsEdited(true); }} /></> : null}
+            {preview ? (
+              <>
+                <div className="pattern-result-heading">
+                  <button
+                    type="button"
+                    disabled={Boolean(status)}
+                    title="Поменять чёрные и пустые клетки местами, включая прозрачный фон"
+                    onClick={() => {
+                      setPreview({ ...preview, cells: invertPatternCells(preview.cells) });
+                      setIsEdited(true);
+                    }}
+                  >Инверсия</button>
+                  <button type="button" disabled={!isEdited || Boolean(status)} onClick={() => {
+                    setPreview({ ...preview, cells: originalCells.map((row) => [...row]) });
+                    setIsEdited(false);
+                  }}>Сбросить ручные изменения</button>
+                </div>
+                <PatternGridEditor
+                  cells={preview.cells}
+                  zoom={previewZoom}
+                  onZoomChange={setPreviewZoom}
+                  onChange={(cells) => { setPreview({ ...preview, cells }); setIsEdited(true); }}
+                />
+              </>
+            ) : null}
           </div>
         ) : (
-          <div className="pattern-create-content pattern-metadata">
+          <div key="metadata" className="pattern-create-content pattern-metadata">
             <label>Имя<input autoFocus maxLength={255} value={name} onChange={(event) => setName(event.target.value)} /></label>
             <label>Категория<select value={category} onChange={(event) => setCategory(event.target.value)}><option value="">Выберите категорию</option>{categories.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select></label>
             <label>Теги<input list="create-pattern-tags" value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addTag(); } }} /><datalist id="create-pattern-tags">{suggestedTags.map((tag) => <option key={tag} value={tag} />)}</datalist></label>

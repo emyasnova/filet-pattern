@@ -1,6 +1,9 @@
 .git
+**/.git
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 **/.DS_Store
 **/.venv
@@ -13,6 +16,7 @@ backend/tools/glyph_import/tests
 backend/tools/glyph_import/artifacts
 backend/tools/glyph_import/output
 backend/tools/glyph_import/input
+backend/tools/glyph_import/tmp_*
 get-size
 docs
 backend/tests/**/*.png

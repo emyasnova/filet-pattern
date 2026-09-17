@@ -76,23 +76,27 @@ describe('patternRepository', () => {
     await expect(loadTags()).resolves.toEqual([{ id: 'tag-id', name: 'letter' }]);
   });
 
-  it('loads the public pattern creation feature flag', async () => {
+  it.each([true, false])('loads the public pattern creation feature flag: %s', async (enabled) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ patternCreationEnabled: true }),
+      json: async () => ({ patternCreationEnabled: enabled }),
     }));
 
-    await expect(loadPublicConfig()).resolves.toEqual({ patternCreationEnabled: true });
+    await expect(loadPublicConfig()).resolves.toEqual({ patternCreationEnabled: enabled });
   });
 
-  it('preserves a forbidden status for creation UI handling', async () => {
+  it.each(['size', 'preview', 'save'])('preserves a forbidden status for %s UI handling', async (stage) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 403,
       json: async () => ({ detail: 'Pattern creation is currently unavailable' }),
     }));
 
-    await expect(detectImageSize(new File(['x'], 'x.png'))).rejects.toEqual(
+    const file = new File(['x'], 'x.png');
+    const request = stage === 'size' ? detectImageSize(file)
+      : stage === 'preview' ? generatePatternPreview(file, { width: 1, height: 1, threshold: 128, fillThreshold: 0.35 })
+      : createPattern({ name: 'Rose', category: 'ornament', tags: [], width: 1, height: 1, cells: [[1]] });
+    await expect(request).rejects.toEqual(
       new ApiRequestError(403, 'Pattern creation is currently unavailable'),
     );
   });

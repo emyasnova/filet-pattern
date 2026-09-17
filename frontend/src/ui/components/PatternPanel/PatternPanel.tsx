@@ -67,7 +67,6 @@ export const PatternPanel = memo(function PatternPanel({
       <div className="panel-header">
         <div>
           <h2 id="patterns-title">Мотивы</h2>
-          <p>Загружаются из каталога на сервере.</p>
         </div>
         {creationEnabled ? <button
           type="button"
@@ -188,7 +187,7 @@ export const PatternPanel = memo(function PatternPanel({
           </ul>
         </div>
       ) : null}
-      {isCreateOpen ? (
+      {creationEnabled && isCreateOpen ? (
         <PatternCreateModal
           categories={categories}
           availableTags={availableTags}
