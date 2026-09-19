@@ -61,6 +61,8 @@ class Settings(BaseSettings):
         if self.public_origin:
             hosts.add(make_url(self.public_origin).host or "")
         hosts.discard("")
+        if hosts:
+            hosts.add("healthcheck.railway.app")
         return sorted(hosts) or ["*"]
 
 
