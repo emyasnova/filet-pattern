@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !.env.*.example
+temp/
 
 # Local credentials and secret configuration.
 .secrets/

@@ -11,14 +11,17 @@ permissions:
 jobs:
   backup:
     runs-on: ubuntu-24.04
+    container: postgres:17-bookworm
     timeout-minutes: 20
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - name: Install backup utilities
+        run: apt-get update && apt-get install --yes --no-install-recommends gzip openssl
+      - name: Check PostgreSQL client version
+        run: pg_dump --version
       - name: Create encrypted backup
         run: ./scripts/backup-postgres.sh filet-pattern-${GITHUB_RUN_ID}.sql.gz.enc
       - name: Upload encrypted artifact

@@ -113,12 +113,17 @@ psql 'postgresql://filet:local-production-only@localhost:55433/filet_pattern_res
 
 ### GitHub backup
 
-Добавьте repository secrets `DATABASE_URL` и `BACKUP_PASSWORD`, затем вручную
-запустите workflow **PostgreSQL backup**. Он хранит только AES-256-CBC encrypted
-artifact 30 дней. Скачайте artifact и выполните команды расшифровки/восстановления
-из раздела round trip, обязательно в отдельную БД. Для Neon после проверки
-создайте новую branch/database, восстановите туда dump, сравните таблицы и число
-паттернов и только затем переключайте приложение на проверенный URL.
+Пошаговая настройка Secrets, ручной запуск и проверка восстановления:
+[GITHUB_BACKUP_SETUP.md](GITHUB_BACKUP_SETUP.md).
+
+Workflow использует клиент PostgreSQL 17, запускается ежедневно в 01:17 UTC
+(04:17 по Москве) и вручную через **Run workflow**. Зашифрованные artifacts
+хранятся 30 дней. Ошибка любого этапа выгрузки останавливает скрипт;
+неполный архив не публикуется как успешная копия.
+
+Проверяйте восстановление в новой пустой БД. Создание обычной Neon branch
+копирует исходные данные и само по себе не проверяет восстановление архива.
+При учебной проверке не меняйте production `DATABASE_URL` в Railway.
 
 ### Домен и DNS
 
